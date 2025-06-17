@@ -30,6 +30,8 @@ The server listens on `http://localhost:5000`.
 
 Uploaded files are stored in the `uploads/` directory, and a simple SQLite database is created as `app.db`.
 
+
+
 ## Beginner Guide
 
 The steps above assume some familiarity with Python. Below is a more detailed
