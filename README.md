@@ -20,6 +20,7 @@ pip install -r requirements.txt
 python app.py
 ```
 
+
 The server listens on `http://localhost:5000`. Opening this URL in a browser
 shows a simple page with forms for uploading an XML file and creating habit
 entries. After uploading a file, the page lists the metrics it detected.
