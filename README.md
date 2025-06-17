@@ -2,6 +2,7 @@
 
 This is a minimal Flask application demonstrating how one might upload Apple Health XML data,
 create daily habits, and store entries.
+
 For Mac users, see **README_mac_ru.md** for a simplified guide in Russian.
 
 ## Setup
