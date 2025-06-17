@@ -2,7 +2,6 @@
 
 This is a minimal Flask application demonstrating how one might upload Apple Health XML data,
 create daily habits, and store entries.
-
 For Mac users, see **README_mac_ru.md** for a simplified guide in Russian.
 
 ## Setup
@@ -21,14 +20,20 @@ pip install -r requirements.txt
 python app.py
 ```
 
-The server listens on `http://localhost:5000`.
+
+The server listens on `http://localhost:5000`. Opening this URL in a browser
+shows a simple page with forms for uploading an XML file and creating habit
+entries. After uploading a file, the page lists the metrics it detected.
+Uploaded data are aggregated per day and stored in a small SQLite database.
+The `/analytics` page shows a basic summary and simple correlations.
 
 ## Endpoints
 
-- `POST /upload` – upload an Apple Health XML file (`file` field in form-data).
-- `POST /habits` – create a habit. JSON body with `name` and `input_type`.
-- `POST /habit_entries` – add an entry. JSON body with `habit_id`, `entry_date` (YYYY-MM-DD), and `value`.
-- `GET /analytics` – placeholder endpoint for analytics.
+- `POST /upload` – upload an Apple Health XML file (can be called from the web form or via `curl`).
+- `POST /habits` – create a habit. Accepts JSON or form data with `name` and `input_type`.
+- `POST /habit_entries` – add an entry. Accepts JSON or form data with `habit_id`, `entry_date` (YYYY-MM-DD), and `value`.
+- `GET /analytics` – show basic statistics and correlations.
+- `GET /` – renders a simple HTML page with forms.
 
 Uploaded files are stored in the `uploads/` directory, and a simple SQLite database is created as `app.db`.
 
@@ -55,7 +60,7 @@ walkthrough if you're setting up a Python project for the first time.
 
    After activation your prompt will show `(venv)` at the beginning.
 3. **Install dependencies** – the packages the app needs are listed in
-   `requirements.txt` (currently only `Flask`). Install them with:
+   `requirements.txt` (`Flask` and `numpy`). Install them with:
 
    ```bash
    pip install -r requirements.txt
