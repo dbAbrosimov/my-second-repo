@@ -29,3 +29,49 @@ The server listens on `http://localhost:5000`.
 - `GET /analytics` – placeholder endpoint for analytics.
 
 Uploaded files are stored in the `uploads/` directory, and a simple SQLite database is created as `app.db`.
+
+
+
+## Beginner Guide
+
+The steps above assume some familiarity with Python. Below is a more detailed
+walkthrough if you're setting up a Python project for the first time.
+
+1. **Install Python 3** – download it from [python.org](https://www.python.org/)
+   if it isn't already installed. You can check by running `python3 --version`
+   in your terminal.
+2. **Create a virtual environment** – this is a folder that keeps the
+   dependencies for this project separate from the rest of your system. Run:
+
+   ```bash
+   python3 -m venv venv
+   ```
+
+   Then activate it:
+
+   ```bash
+   source venv/bin/activate  # On Windows use "venv\Scripts\activate"
+   ```
+
+   After activation your prompt will show `(venv)` at the beginning.
+3. **Install dependencies** – the packages the app needs are listed in
+   `requirements.txt` (currently only `Flask`). Install them with:
+
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+4. **Run the server** – start the Flask application with:
+
+   ```bash
+   python app.py
+   ```
+
+   Visit `http://localhost:5000` in your browser. Use tools like `curl` or
+   Postman to send requests to the API endpoints described above.
+5. **Deactivate the environment** – when you're done, simply run `deactivate`
+   to leave the virtual environment.
+
+If you ever remove the `venv/` folder, you can recreate it using the same steps
+above. The SQLite database (`app.db`) and uploaded files (`uploads/`) are stored
+locally in the project directory.
