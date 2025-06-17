@@ -3,6 +3,8 @@
 This is a minimal Flask application demonstrating how one might upload Apple Health XML data,
 create daily habits, and store entries.
 
+For Mac users, see **README_mac_ru.md** for a simplified guide in Russian.
+
 ## Setup
 
 1. Create a virtual environment and install dependencies:
@@ -29,8 +31,6 @@ The server listens on `http://localhost:5000`.
 - `GET /analytics` – placeholder endpoint for analytics.
 
 Uploaded files are stored in the `uploads/` directory, and a simple SQLite database is created as `app.db`.
-
-
 
 ## Beginner Guide
 
