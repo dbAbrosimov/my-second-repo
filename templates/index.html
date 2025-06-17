@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Upload Apple Health XML</h2>
+<form action="/upload" method="post" enctype="multipart/form-data">
+  <input type="file" name="file" required>
+  <input type="submit" value="Upload">
+</form>
+
+<h2>Create Habit</h2>
+<form action="/habits" method="post" id="habit-form">
+  <label>Name</label>
+  <input type="text" name="name" required>
+  <label>Input Type</label>
+  <select name="input_type">
+    <option value="boolean">Yes/No</option>
+    <option value="number">Number</option>
+    <option value="scale3">Low/Medium/High</option>
+    <option value="scale5">1 to 5</option>
+  </select>
+  <input type="submit" value="Create">
+</form>
+
+<h2>Add Habit Entry</h2>
+<form action="/habit_entries" method="post" id="entry-form">
+  <label>Habit ID</label>
+  <input type="text" name="habit_id" required>
+  <label>Date</label>
+  <input type="date" name="entry_date" required>
+  <label>Value</label>
+  <input type="text" name="value" required>
+  <input type="submit" value="Add Entry">
+</form>
+
+<p><a href="/analytics">View Analytics</a></p>
+{% if metrics %}
+<h3>Metrics found in last upload:</h3>
+<ul>
+  {% for m in metrics %}
+  <li>{{ m }}</li>
+  {% endfor %}
+</ul>
+{% endif %}
+{% endblock %}
