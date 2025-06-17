@@ -3,8 +3,10 @@
 This is a minimal Flask application demonstrating how one might upload Apple Health XML data,
 create daily habits, and store entries.
 
-For Mac users, see **README_mac_ru.md** for a simplified guide in Russian.
+The server listens on `http://localhost:5000`. Opening this URL in a browser
+will show a short welcome message so you know the server is running.
 
+- `GET /` – simple welcome message (useful to check the server is running).
 ## Setup
 
 1. Create a virtual environment and install dependencies:

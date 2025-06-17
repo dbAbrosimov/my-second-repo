@@ -83,5 +83,13 @@ def analytics():
     # Placeholder analytics implementation
     return jsonify({'message': 'Analytics not implemented. This is a stub.'})
 
+@app.route('/')
+def index():
+    """Simple index route so the root URL doesn't return 404."""
+    return (
+        "Health Habit Tracker API. "
+        "Use /upload, /habits, /habit_entries and /analytics endpoints."
+    )
+
 if __name__ == '__main__':
     app.run(debug=True)
