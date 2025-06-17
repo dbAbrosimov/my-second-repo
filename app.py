@@ -4,6 +4,7 @@ import sqlite3
 import xml.etree.ElementTree as ET
 from collections import defaultdict
 import statistics
+import pandas as pd
 import os
 
 app = Flask(__name__)
@@ -57,18 +58,25 @@ def create_habit():
 
 @app.route('/habit_entries', methods=['POST'])
 def add_entry():
-   data = request.form if request.form else request.json
+    """Store a single habit entry for the given date."""
+    data = request.form if request.form else request.json
     if not data:
         return jsonify({'error': 'No data provided'}), 400
+
     habit_id = data.get('habit_id')
     entry_date = data.get('entry_date')
     value = data.get('value')
+
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute('INSERT INTO habit_entries (habit_id, entry_date, value) VALUES (?, ?, ?)',
-              (habit_id, entry_date, value))
+    c.execute(
+        'INSERT INTO habit_entries (habit_id, entry_date, value) '
+        'VALUES (?, ?, ?)',
+        (habit_id, entry_date, value)
+    )
     conn.commit()
     conn.close()
+
     if request.form:
         return redirect(url_for('index'))
     return jsonify({'status': 'ok'})
@@ -121,51 +129,61 @@ def parse_xml(path):
 
 @app.route('/analytics', methods=['GET'])
 def analytics():
-    """Very simple analytics on stored metrics and habits."""
+    """Compute correlations between metrics and habits."""
+    accuracy = request.args.get('accuracy', 'medium')
+    thresholds = {'high': 0.6, 'medium': 0.4, 'low': 0.2}
+    min_points = {'high': 30, 'medium': 15, 'low': 5}
+    thresh = thresholds.get(accuracy, 0.4)
+    min_pts = min_points.get(accuracy, 15)
+
     conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-
-    c.execute("SELECT metric_date, value FROM daily_metrics WHERE metric_type=?", (
-        'HKQuantityTypeIdentifierStepCount',))
-    steps = {d: v for d, v in c.fetchall()}
-
-    c.execute("SELECT metric_date, value FROM daily_metrics WHERE metric_type=?", (
-        'HKQuantityTypeIdentifierHeartRateVariabilitySDNN',))
-    hrv = {d: v for d, v in c.fetchall()}
-
-    avg_steps = statistics.mean(steps.values()) if steps else 0
-    avg_hrv = statistics.mean(hrv.values()) if hrv else 0
-
-    message_parts = [
-        f"Average daily steps: {avg_steps:.0f}",
-        f"Average HRV: {avg_hrv:.0f}"
-    ]
-
-    common = [d for d in steps if d in hrv]
-    if len(common) > 1:
-        import numpy as np
-        step_vals = [steps[d] for d in common]
-        hrv_vals = [hrv[d] for d in common]
-        corr = float(np.corrcoef(step_vals, hrv_vals)[0, 1])
-        message_parts.append(f"Correlation between steps and HRV: {corr:.2f}")
-
-    # Simple habit effect on HRV for boolean habits
-    c.execute("SELECT id, name FROM habits WHERE input_type='boolean'")
-    habits = c.fetchall()
-    for hid, name in habits:
-        c.execute("SELECT entry_date, value FROM habit_entries WHERE habit_id=?", (hid,))
-        entries = {d: v for d, v in c.fetchall()}
-        yes_vals = [hrv[d] for d, v in entries.items() if v.lower() in ('1', 'yes', 'true') and d in hrv]
-        no_vals = [hrv[d] for d, v in entries.items() if v.lower() in ('0', 'no', 'false') and d in hrv]
-        if yes_vals and no_vals:
-            diff = statistics.mean(yes_vals) - statistics.mean(no_vals)
-            message_parts.append(
-                f"When '{name}' is yes, HRV changes by {diff:+.1f} ms")
-
+    df = pd.read_sql_query('SELECT metric_date, metric_type, value FROM daily_metrics', conn)
+    habits_df = pd.read_sql_query(
+        'SELECT habit_entries.entry_date, habits.name, habits.input_type, habit_entries.value '
+        'FROM habit_entries JOIN habits ON habit_entries.habit_id = habits.id',
+        conn
+    )
     conn.close()
-    message = '. '.join(message_parts)
+
+    if df.empty:
+        return render_template('analytics.html', message='No metrics uploaded yet')
+
+    pivot = df.pivot_table(values='value', index='metric_date', columns='metric_type', aggfunc='first')
+
+    if not habits_df.empty:
+        def conv(row):
+            t = row['input_type']
+            val = row['value']
+            if t == 'boolean':
+                return 1 if str(val).lower() in ('1', 'yes', 'true', 'да') else 0
+            try:
+                return float(val)
+            except ValueError:
+                return None
+
+        habits_df['num_val'] = habits_df.apply(conv, axis=1)
+        habit_pivot = habits_df.pivot_table(values='num_val', index='entry_date', columns='name', aggfunc='first')
+        pivot = pivot.join(habit_pivot, how='left')
+
+    correlations = []
+    cols = list(pivot.columns)
+    for i in range(len(cols)):
+        for j in range(i + 1, len(cols)):
+            c1, c2 = cols[i], cols[j]
+            sub = pivot[[c1, c2]].dropna()
+            if len(sub) < min_pts:
+                continue
+            corr = sub[c1].corr(sub[c2])
+            if corr is not None and abs(corr) >= thresh and abs(corr) < 0.99:
+                correlations.append((c1, c2, corr))
+
+    lines = [f"Accuracy: {accuracy}", f"Found {len(correlations)} significant correlations"]
+    for c1, c2, corr in correlations:
+        lines.append(f"{c1} vs {c2}: {corr:+.2f}")
+
+    message = '\n'.join(lines)
     if request.args.get('json') == '1':
-        return jsonify({'message': message})
+        return jsonify({'correlations': correlations})
     return render_template('analytics.html', message=message)
 
 @app.route('/')
