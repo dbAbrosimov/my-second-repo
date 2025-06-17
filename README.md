@@ -1,7 +1,7 @@
 # Health Habit Tracker (Prototype)
 
 This is a minimal Flask application demonstrating how one might upload Apple Health XML data,
-create daily habits, and store entries.
+
 For Mac users, see **README_mac_ru.md** for a simplified guide in Russian.
 
 ## Setup
@@ -25,7 +25,11 @@ The server listens on `http://localhost:5000`. Opening this URL in a browser
 shows a simple page with forms for uploading an XML file and creating habit
 entries. After uploading a file, the page lists the metrics it detected.
 Uploaded data are aggregated per day and stored in a small SQLite database.
-The `/analytics` page shows a basic summary and simple correlations.
+
+The `/analytics` page now computes correlations between all stored metrics and
+habit entries. Use the query parameter `accuracy` (`high`, `medium`, or `low`)
+to control how strict the correlation threshold is.
+
 
 ## Endpoints
 
@@ -60,7 +64,7 @@ walkthrough if you're setting up a Python project for the first time.
 
    After activation your prompt will show `(venv)` at the beginning.
 3. **Install dependencies** – the packages the app needs are listed in
-   `requirements.txt` (`Flask` and `numpy`). Install them with:
+   `requirements.txt` (`Flask`, `numpy`, and `pandas`). Install them with:
 
    ```bash
    pip install -r requirements.txt
