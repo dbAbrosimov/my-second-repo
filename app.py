@@ -57,7 +57,7 @@ def create_habit():
 
 @app.route('/habit_entries', methods=['POST'])
 def add_entry():
-    data = request.form if request.form else request.json
+   data = request.form if request.form else request.json
     if not data:
         return jsonify({'error': 'No data provided'}), 400
     habit_id = data.get('habit_id')
