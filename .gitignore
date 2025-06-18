@@ -1,1 +1,4 @@
 uploads/xml
+.DS_Store
+__pycache__/
+app.db

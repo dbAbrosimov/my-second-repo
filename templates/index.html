@@ -1,102 +1,24 @@
 {% extends 'base.html' %}
+
 {% block content %}
-<h2>Upload Apple Health XML</h2>
-<form action="/upload" method="post" enctype="multipart/form-data">
-  <input type="file" name="file" required>
-  <input type="submit" value="Upload">
-</form>
-
-<h2>Create Habit</h2>
-<form action="/habits" method="post" id="habit-form">
-  <label>Name</label>
-  <input type="text" name="name" required>
-  <label>Input Type</label>
-  <select name="input_type">
-    <option value="boolean">Yes/No</option>
-    <option value="number">Number</option>
-    <option value="scale3">Low/Medium/High</option>
-    <option value="scale5">1 to 5</option>
-  </select>
-  <input type="submit" value="Create">
-</form>
-
-{% if habits %}
-<h2>Today&#39;s Habits</h2>
-{% set today = ("now"|date("%Y-%m-%d")) %}
-{% for h in habits %}
-  <form action="/habit_entries" method="post" style="margin-bottom:0.5em;">
-    <input type="hidden" name="habit_id" value="{{ h[0] }}">
-    <input type="hidden" name="entry_date" value="{{ today }}">
-    <strong>{{ h[1] }}</strong>
-    {% if h[2] == 'boolean' %}
-      <button name="value" value="1">Yes</button>
-      <button name="value" value="0">No</button>
-    {% elif h[2] == 'number' %}
-      <input type="number" name="value" step="any">
-      <input type="submit" value="Save">
-    {% elif h[2] == 'scale3' %}
-      <button name="value" value="low">Low</button>
-      <button name="value" value="medium">Medium</button>
-      <button name="value" value="high">High</button>
-    {% elif h[2] == 'scale5' %}
-      {% for i in range(1,6) %}
-        <button name="value" value="{{ i }}">{{ i }}</button>
-      {% endfor %}
-    {% endif %}
+  <h2>Upload Apple Health XML</h2>
+  <form action="/upload" method="post" enctype="multipart/form-data">
+    <input type="file" name="file" required>
+    <input type="submit" value="Upload">
   </form>
-{% endfor %}
-{% endif %}
 
-<p><a href="/analytics">View Analytics</a> (use <code>?accuracy=high|medium|low</code>)</p>
-{% if metrics %}
-<h3>Metrics found in last upload:</h3>
-<ul>
-  {% for m in metrics %}
-  <li>{{ m }}</li>
-  {% endfor %}
-</ul>
-{% endif %}
-{% endblock %}
-{% extends 'base.html' %}
-{% block content %}
-<h2>Upload Apple Health XML</h2>
-<form action="/upload" method="post" enctype="multipart/form-data">
-  <input type="file" name="file" required>
-  <input type="submit" value="Upload">
-</form>
+  <h2>Create Habit</h2>
+  <form action="/habits" method="post" id="habit-form">
+    …  
+  </form>
 
-<h2>Create Habit</h2>
-<form action="/habits" method="post" id="habit-form">
-  <label>Name</label>
-  <input type="text" name="name" required>
-  <label>Input Type</label>
-  <select name="input_type">
-    <option value="boolean">Yes/No</option>
-    <option value="number">Number</option>
-    <option value="scale3">Low/Medium/High</option>
-    <option value="scale5">1 to 5</option>
-  </select>
-  <input type="submit" value="Create">
-</form>
+  {% if habits %}
+    …  
+  {% endif %}
 
-<h2>Add Habit Entry</h2>
-<form action="/habit_entries" method="post" id="entry-form">
-  <label>Habit ID</label>
-  <input type="text" name="habit_id" required>
-  <label>Date</label>
-  <input type="date" name="entry_date" required>
-  <label>Value</label>
-  <input type="text" name="value" required>
-  <input type="submit" value="Add Entry">
-</form>
+  <p><a href="/analytics">View Analytics</a> …</p>
 
-<p><a href="/analytics">View Analytics</a> (use <code>?accuracy=high|medium|low</code>)</p>
-{% if metrics %}
-<h3>Metrics found in last upload:</h3>
-<ul>
-  {% for m in metrics %}
-  <li>{{ m }}</li>
-  {% endfor %}
-</ul>
-{% endif %}
+  {% if metrics %}
+    …  
+  {% endif %}
 {% endblock %}
