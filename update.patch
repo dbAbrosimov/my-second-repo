@@ -1,0 +1,540 @@
+diff --git a/.gitignore b/.gitignore
+new file mode 100644
+index 0000000000000000000000000000000000000000..55fb900fcc53ffc2fd544506b05590fbaf95c544
+--- /dev/null
++++ b/.gitignore
+@@ -0,0 +1,4 @@
++__pycache__/
++venv/
++app.db
++uploads/
+diff --git a/README.md b/README.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..f54095baec180095f2a712abeeb55a3dcbc8d8d5
+--- /dev/null
++++ b/README.md
+@@ -0,0 +1,86 @@
++# Health Habit Tracker (Prototype)
++
++This is a minimal Flask application demonstrating how one might upload Apple Health XML data,
++create daily habits, store entries, and explore correlations between them.
++For Mac users, see **README_mac_ru.md** for a simplified guide in Russian.
++
++## Setup
++
++1. Create a virtual environment and install dependencies:
++
++```bash
++python3 -m venv venv
++source venv/bin/activate
++pip install -r requirements.txt
++```
++
++2. Run the application:
++
++```bash
++python app.py
++```
++
++The server listens on `http://localhost:5000`. Opening this URL in a browser
++shows a simple page with forms for uploading an XML file and creating habits.
++Existing habits are listed with buttons so you can quickly mark today&#39;s values.
++After uploading a file, the page lists the metrics it detected.
++Uploaded data are aggregated per day and stored in a small SQLite database.
++The `/analytics` page now computes correlations between all stored metrics and
++habit entries. Metric names are shown in a human friendly form (e.g. `Apple Stand Time`).
++Use the query parameter `accuracy` (`high`, `medium`, or `low`) or the buttons on the analytics page
++to control how strict the correlation threshold is. Trivial relations like
++`Body Fat Percentage` vs `Body Mass` are hidden unless `show_trivial=1` is passed.
++
++## Endpoints
++
++- `POST /upload` – upload an Apple Health XML file (can be called from the web form or via `curl`).
++- `POST /habits` – create a habit. Accepts JSON or form data with `name` and `input_type`.
++- `POST /habit_entries` – add an entry. Accepts JSON or form data with `habit_id`, `entry_date` (YYYY-MM-DD), and `value`.
++- `GET /analytics` – show basic statistics and correlations.
++- `GET /` – renders a simple HTML page with forms.
++
++Uploaded files are stored in the `uploads/` directory, and a simple SQLite database is created as `app.db`.
++
++## Beginner Guide
++
++The steps above assume some familiarity with Python. Below is a more detailed
++walkthrough if you're setting up a Python project for the first time.
++
++1. **Install Python 3** – download it from [python.org](https://www.python.org/)
++   if it isn't already installed. You can check by running `python3 --version`
++   in your terminal.
++2. **Create a virtual environment** – this is a folder that keeps the
++   dependencies for this project separate from the rest of your system. Run:
++
++   ```bash
++   python3 -m venv venv
++   ```
++
++   Then activate it:
++
++   ```bash
++   source venv/bin/activate  # On Windows use "venv\Scripts\activate"
++   ```
++
++   After activation your prompt will show `(venv)` at the beginning.
++3. **Install dependencies** – the packages the app needs are listed in
++   `requirements.txt` (`Flask`, `numpy`, and `pandas`). Install them with:
++
++   ```bash
++   pip install -r requirements.txt
++   ```
++
++4. **Run the server** – start the Flask application with:
++
++   ```bash
++   python app.py
++   ```
++
++   Visit `http://localhost:5000` in your browser. Use tools like `curl` or
++   Postman to send requests to the API endpoints described above.
++5. **Deactivate the environment** – when you're done, simply run `deactivate`
++   to leave the virtual environment.
++
++If you ever remove the `venv/` folder, you can recreate it using the same steps
++above. The SQLite database (`app.db`) and uploaded files (`uploads/`) are stored
++locally in the project directory.
+diff --git a/README_mac_ru.md b/README_mac_ru.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..0ca0cc6c73dfe8c11228365a28fd8f5b80625406
+--- /dev/null
++++ b/README_mac_ru.md
+@@ -0,0 +1,55 @@
++# Быстрый старт на Mac
++
++Эти шаги помогут запустить прототип приложения на Mac.
++
++1. **Убедитесь, что установлен Python 3**
++   
++   В терминале выполните:
++   ```bash
++   python3 --version
++   ```
++   Если команда не найдена, скачайте Python с сайта [python.org](https://www.python.org/) или установите через Homebrew:
++   ```bash
++   brew install python3
++   ```
++
++2. **Скачайте проект и перейдите в его папку**
++   
++   В терминале выполните:
++   ```bash
++   git clone <адрес репозитория>
++   cd <папка-проекта>
++   ```
++
++3. **Создайте виртуальное окружение и активируйте его**
++   
++   ```bash
++   python3 -m venv venv
++   source venv/bin/activate
++   ```
++   В начале строки появится `(venv)` – это значит, что окружение активно.
++
++4. **Установите зависимости** (Flask, numpy и pandas)
++
++   ```bash
++   pip install -r requirements.txt
++   ```
++
++5. **Запустите приложение**
++   
++   ```bash
++   python app.py
++   ```
++   Сервер будет работать на `http://localhost:5000`.
++  Перейдите по этому адресу через браузер. На главной странице можно загрузить
++  XML и создать привычки. Ниже появится список привычек с кнопками для выбора
++  значения на сегодня. После загрузки файла метрики показываются в
++  удобном виде (например, «Apple Stand Time»). Откройте `/analytics`, чтобы
++  увидеть корреляции. На странице есть кнопки выбора точности (`high`,
++  `medium`, `low`). Тривиальные связи скрываются по умолчанию, но их можно
++  отобразить, добавив `show_trivial=1` в адрес.
++
++6. **Отключение окружения**
++   
++   После завершения работы просто введите `deactivate`.
++
+diff --git a/app.py b/app.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..6598d89cfa49db337d7d45820ac337f7dbd3bfba
+--- /dev/null
++++ b/app.py
+@@ -0,0 +1,245 @@
++from flask import Flask, request, jsonify, render_template, redirect, url_for
++from werkzeug.utils import secure_filename
++import sqlite3
++import xml.etree.ElementTree as ET
++from collections import defaultdict
++import statistics
++import pandas as pd
++import numpy as np
++import os
++
++app = Flask(__name__)
++app.config['UPLOAD_FOLDER'] = 'uploads'
++
++os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
++DB_PATH = 'app.db'
++
++TRIVIAL_PAIRS = {frozenset({'Body Fat Percentage', 'Body Mass'})}
++
++def prettify_type(raw):
++    """Convert HK type names to a readable form."""
++    if not raw:
++        return raw
++    prefixes = [
++        'HKQuantityTypeIdentifier',
++        'HKCategoryTypeIdentifier',
++        'HKCorrelationTypeIdentifier',
++    ]
++    for p in prefixes:
++        if raw.startswith(p):
++            raw = raw[len(p):]
++            break
++    if raw.startswith('HK'):
++        raw = raw[2:]
++    if raw.endswith('Identifier'):
++        raw = raw[:-10]
++    words = []
++    buf = raw[0]
++    for ch in raw[1:]:
++        if ch.isupper() and buf[-1].islower():
++            words.append(buf)
++            buf = ch
++        else:
++            buf += ch
++    words.append(buf)
++    return ' '.join(w.capitalize() for w in words)
++
++def init_db():
++    conn = sqlite3.connect(DB_PATH)
++    c = conn.cursor()
++    c.execute('''CREATE TABLE IF NOT EXISTS habits (
++                    id INTEGER PRIMARY KEY AUTOINCREMENT,
++                    name TEXT,
++                    input_type TEXT
++                )''')
++    c.execute('''CREATE TABLE IF NOT EXISTS daily_metrics (
++                    id INTEGER PRIMARY KEY AUTOINCREMENT,
++                    metric_type TEXT,
++                    metric_date TEXT,
++                    value REAL
++                )''')
++    c.execute('''CREATE TABLE IF NOT EXISTS habit_entries (
++                    id INTEGER PRIMARY KEY AUTOINCREMENT,
++                    habit_id INTEGER,
++                    entry_date TEXT,
++                    value TEXT,
++                    FOREIGN KEY(habit_id) REFERENCES habits(id)
++                )''')
++    conn.commit()
++    conn.close()
++
++init_db()
++
++@app.route('/habits', methods=['POST'])
++def create_habit():
++    data = request.form if request.form else request.json
++    if not data:
++        return jsonify({'error': 'No data provided'}), 400
++    name = data.get('name')
++    input_type = data.get('input_type')
++    conn = sqlite3.connect(DB_PATH)
++    c = conn.cursor()
++    c.execute('INSERT INTO habits (name, input_type) VALUES (?, ?)', (name, input_type))
++    conn.commit()
++    habit_id = c.lastrowid
++    conn.close()
++    if request.form:
++        return redirect(url_for('index'))
++    return jsonify({'id': habit_id, 'name': name, 'input_type': input_type})
++
++@app.route('/habit_entries', methods=['POST'])
++def add_entry():
++    """Store a single habit entry for the given date."""
++    data = request.form if request.form else request.json
++    if not data:
++        return jsonify({'error': 'No data provided'}), 400
++
++    habit_id = data.get('habit_id')
++    entry_date = data.get('entry_date')
++    value = data.get('value')
++
++    conn = sqlite3.connect(DB_PATH)
++    c = conn.cursor()
++    c.execute(
++        'INSERT INTO habit_entries (habit_id, entry_date, value) '
++        'VALUES (?, ?, ?)',
++        (habit_id, entry_date, value)
++    )
++    conn.commit()
++    conn.close()
++
++    if request.form:
++        return redirect(url_for('index'))
++    return jsonify({'status': 'ok'})
++
++@app.route('/upload', methods=['POST'])
++def upload_xml():
++    if 'file' not in request.files:
++        return 'No file', 400
++    file = request.files['file']
++    filename = secure_filename(file.filename)
++    path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
++    file.save(path)
++    metrics = parse_xml(path)
++    if request.form:
++        # When called from HTML form, show metrics on the index page
++        return render_template('index.html', metrics=list(metrics.keys()))
++    return jsonify({'metrics_found': list(metrics.keys())})
++
++def parse_xml(path):
++    """Parse XML and store daily aggregates in the DB."""
++    daily = defaultdict(lambda: defaultdict(list))
++    for event, elem in ET.iterparse(path, events=('end',)):
++        if elem.tag == 'Record':
++            mtype = prettify_type(elem.attrib.get('type'))
++            value = elem.attrib.get('value')
++            start = elem.attrib.get('startDate', '')[:10]
++            try:
++                num = float(value)
++            except (TypeError, ValueError):
++                elem.clear()
++                continue
++            daily[mtype][start].append(num)
++            elem.clear()
++
++    conn = sqlite3.connect(DB_PATH)
++    c = conn.cursor()
++    metrics_found = set()
++    for mtype, days in daily.items():
++        for date, values in days.items():
++            if mtype == 'Step Count':
++                val = sum(values)
++            else:
++                val = statistics.mean(values)
++            c.execute('INSERT INTO daily_metrics (metric_type, metric_date, value) VALUES (?, ?, ?)',
++                      (mtype, date, val))
++            metrics_found.add(mtype)
++    conn.commit()
++    conn.close()
++    return {m: None for m in metrics_found}
++
++@app.route('/analytics', methods=['GET'])
++def analytics():
++    """Compute correlations between metrics and habits."""
++    accuracy = request.args.get('accuracy', 'medium')
++    thresholds = {'high': 0.6, 'medium': 0.4, 'low': 0.2}
++    min_points = {'high': 30, 'medium': 15, 'low': 5}
++    thresh = thresholds.get(accuracy, 0.4)
++    min_pts = min_points.get(accuracy, 15)
++    show_trivial = request.args.get('show_trivial') == '1'
++
++    conn = sqlite3.connect(DB_PATH)
++    df = pd.read_sql_query('SELECT metric_date, metric_type, value FROM daily_metrics', conn)
++    habits_df = pd.read_sql_query(
++        'SELECT habit_entries.entry_date, habits.name, habits.input_type, habit_entries.value '
++        'FROM habit_entries JOIN habits ON habit_entries.habit_id = habits.id',
++        conn
++    )
++    conn.close()
++
++    if df.empty:
++        return render_template('analytics.html', message='No metrics uploaded yet')
++
++    pivot = df.pivot_table(values='value', index='metric_date', columns='metric_type', aggfunc='first')
++
++    if not habits_df.empty:
++        def conv(row):
++            t = row['input_type']
++            val = row['value']
++            if t == 'boolean':
++                return 1 if str(val).lower() in ('1', 'yes', 'true', 'да') else 0
++            try:
++                return float(val)
++            except ValueError:
++                return None
++
++        habits_df['num_val'] = habits_df.apply(conv, axis=1)
++        habit_pivot = habits_df.pivot_table(values='num_val', index='entry_date', columns='name', aggfunc='first')
++        pivot = pivot.join(habit_pivot, how='left')
++
++    correlations = []
++    summaries = []
++    cols = list(pivot.columns)
++    for i in range(len(cols)):
++        for j in range(i + 1, len(cols)):
++            c1, c2 = cols[i], cols[j]
++            sub = pivot[[c1, c2]].dropna()
++            if len(sub) < min_pts:
++                continue
++            corr = sub[c1].corr(sub[c2])
++            if corr is None:
++                continue
++            if frozenset({c1, c2}) in TRIVIAL_PAIRS and not show_trivial:
++                continue
++            if abs(corr) >= thresh and abs(corr) < 0.99:
++                correlations.append((c1, c2, corr))
++                slope, intercept = np.polyfit(sub[c1], sub[c2], 1)
++                mean_x = sub[c1].mean()
++                mean_y = sub[c2].mean()
++                step = sub[c1].std()
++                if step:
++                    predicted = mean_y + slope * step
++                    summaries.append(
++                        f"If your {c1.lower()} rises from {mean_x:.0f} to {mean_x+step:.0f}, "
++                        f"{c2.lower()} may change from {mean_y:.0f} to {predicted:.0f}."
++                    )
++
++    lines = [f"Accuracy: {accuracy}", f"Found {len(correlations)} significant correlations"]
++    for c1, c2, corr in correlations:
++        lines.append(f"{c1} vs {c2}: {corr:+.2f}")
++
++    message = '\n'.join(lines)
++    if request.args.get('json') == '1':
++        return jsonify({'correlations': correlations, 'summaries': summaries})
++    return render_template('analytics.html', message=message, summaries=summaries, accuracy=accuracy)
++
++@app.route('/')
++def index():
++    """Render a simple page with forms for common actions."""
++    conn = sqlite3.connect(DB_PATH)
++    habits = conn.execute('SELECT id, name, input_type FROM habits').fetchall()
++    conn.close()
++    return render_template('index.html', habits=habits)
++
++if __name__ == '__main__':
++    app.run(debug=True)
+diff --git a/requirements.txt b/requirements.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..4b0b79a6602ed1d790412ef8cc1781095d7e4dee
+--- /dev/null
++++ b/requirements.txt
+@@ -0,0 +1,3 @@
++Flask
++numpy
++pandas
+diff --git a/templates/analytics.html b/templates/analytics.html
+new file mode 100644
+index 0000000000000000000000000000000000000000..03f7e40e42b21b43d0f14adab76e11707383fe61
+--- /dev/null
++++ b/templates/analytics.html
+@@ -0,0 +1,17 @@
++{% extends 'base.html' %}
++{% block content %}
++<h2>Analytics</h2>
++<div>
++  <a href="/analytics?accuracy=high" class="btn">High</a>
++  <a href="/analytics?accuracy=medium" class="btn">Medium</a>
++  <a href="/analytics?accuracy=low" class="btn">Low</a>
++</div>
++<pre>{{ message }}</pre>
++{% if summaries %}
++<ul>
++  {% for s in summaries %}
++  <li>{{ s }}</li>
++  {% endfor %}
++</ul>
++{% endif %}
++{% endblock %}
+diff --git a/templates/base.html b/templates/base.html
+new file mode 100644
+index 0000000000000000000000000000000000000000..245e4aaa27e661cba79175c2602e3bf22399b670
+--- /dev/null
++++ b/templates/base.html
+@@ -0,0 +1,22 @@
++<!DOCTYPE html>
++<html lang="en">
++<head>
++    <meta charset="UTF-8" />
++    <title>Health Habit Tracker</title>
++    <style>
++      body { font-family: Arial, sans-serif; margin: 2em; background: #f8f8f8; }
++      .container { max-width: 700px; margin: auto; background: white; padding: 2em; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
++      form { margin-bottom: 1.5em; padding: 1em; border: 1px solid #ccc; }
++      label { display: block; margin-top: 0.5em; }
++      input[type="text"], input[type="date"], select { width: 100%; }
++      input[type="submit"], button { margin-top: 0.5em; }
++      .btn { padding: 0.3em 0.8em; background:#007bff; color:white; text-decoration:none; margin-right:0.3em; }
++    </style>
++</head>
++<body>
++<div class="container">
++<h1>Health Habit Tracker</h1>
++{% block content %}{% endblock %}
++</div>
++</body>
++</html>
+diff --git a/templates/index.html b/templates/index.html
+new file mode 100644
+index 0000000000000000000000000000000000000000..5c4aef6ce8c988882c583744aae25f4cf7511901
+--- /dev/null
++++ b/templates/index.html
+@@ -0,0 +1,59 @@
++{% extends 'base.html' %}
++{% block content %}
++<h2>Upload Apple Health XML</h2>
++<form action="/upload" method="post" enctype="multipart/form-data">
++  <input type="file" name="file" required>
++  <input type="submit" value="Upload">
++</form>
++
++<h2>Create Habit</h2>
++<form action="/habits" method="post" id="habit-form">
++  <label>Name</label>
++  <input type="text" name="name" required>
++  <label>Input Type</label>
++  <select name="input_type">
++    <option value="boolean">Yes/No</option>
++    <option value="number">Number</option>
++    <option value="scale3">Low/Medium/High</option>
++    <option value="scale5">1 to 5</option>
++  </select>
++  <input type="submit" value="Create">
++</form>
++
++{% if habits %}
++<h2>Today&#39;s Habits</h2>
++{% set today = ("now"|date("%Y-%m-%d")) %}
++{% for h in habits %}
++  <form action="/habit_entries" method="post" style="margin-bottom:0.5em;">
++    <input type="hidden" name="habit_id" value="{{ h[0] }}">
++    <input type="hidden" name="entry_date" value="{{ today }}">
++    <strong>{{ h[1] }}</strong>
++    {% if h[2] == 'boolean' %}
++      <button name="value" value="1">Yes</button>
++      <button name="value" value="0">No</button>
++    {% elif h[2] == 'number' %}
++      <input type="number" name="value" step="any">
++      <input type="submit" value="Save">
++    {% elif h[2] == 'scale3' %}
++      <button name="value" value="low">Low</button>
++      <button name="value" value="medium">Medium</button>
++      <button name="value" value="high">High</button>
++    {% elif h[2] == 'scale5' %}
++      {% for i in range(1,6) %}
++        <button name="value" value="{{ i }}">{{ i }}</button>
++      {% endfor %}
++    {% endif %}
++  </form>
++{% endfor %}
++{% endif %}
++
++<p><a href="/analytics">View Analytics</a> (use <code>?accuracy=high|medium|low</code>)</p>
++{% if metrics %}
++<h3>Metrics found in last upload:</h3>
++<ul>
++  {% for m in metrics %}
++  <li>{{ m }}</li>
++  {% endfor %}
++</ul>
++{% endif %}
++{% endblock %}
+

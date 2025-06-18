@@ -1,5 +1,22 @@
 {% extends 'base.html' %}
 {% block content %}
 <h2>Analytics</h2>
+<div>
+  <a href="/analytics?accuracy=high" class="btn">High</a>
+  <a href="/analytics?accuracy=medium" class="btn">Medium</a>
+  <a href="/analytics?accuracy=low" class="btn">Low</a>
+</div>
+<pre>{{ message }}</pre>
+{% if summaries %}
+<ul>
+  {% for s in summaries %}
+  <li>{{ s }}</li>
+  {% endfor %}
+</ul>
+{% endif %}
+{% endblock %}
+{% extends 'base.html' %}
+{% block content %}
+<h2>Analytics</h2>
 <pre>{{ message }}</pre>
 {% endblock %}
