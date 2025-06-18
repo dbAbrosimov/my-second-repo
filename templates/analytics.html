@@ -1,17 +1,16 @@
 {% extends 'base.html' %}
-
 {% block content %}
-<h2>Analytics</h2>
-<div>
-  <a href="/analytics?accuracy=high" class="btn">High</a>
-  <a href="/analytics?accuracy=medium" class="btn">Medium</a>
-  <a href="/analytics?accuracy=low" class="btn">Low</a>
+<h2 class="mb-3">Analytics</h2>
+<div class="mb-3">
+  <a href="/analytics?accuracy=high" class="btn btn-sm btn-primary">High</a>
+  <a href="/analytics?accuracy=medium" class="btn btn-sm btn-secondary">Medium</a>
+  <a href="/analytics?accuracy=low" class="btn btn-sm btn-secondary">Low</a>
 </div>
-<pre>{{ message }}</pre>
+<pre class="bg-light p-3">{{ message }}</pre>
 {% if summaries %}
-<ul>
+<ul class="list-group">
   {% for s in summaries %}
-  <li>{{ s }}</li>
+  <li class="list-group-item">{{ s }}</li>
   {% endfor %}
 </ul>
 {% endif %}
