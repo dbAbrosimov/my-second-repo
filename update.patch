@@ -10,10 +10,10 @@ index 0000000000000000000000000000000000000000..55fb900fcc53ffc2fd544506b05590fb
 +uploads/
 diff --git a/README.md b/README.md
 new file mode 100644
-index 0000000000000000000000000000000000000000..f54095baec180095f2a712abeeb55a3dcbc8d8d5
+index 0000000000000000000000000000000000000000..3ab2c6970856cbc5c4e172b3c1b9af50b70c24fc
 --- /dev/null
 +++ b/README.md
-@@ -0,0 +1,86 @@
+@@ -0,0 +1,87 @@
 +# Health Habit Tracker (Prototype)
 +
 +This is a minimal Flask application demonstrating how one might upload Apple Health XML data,
@@ -37,8 +37,9 @@ index 0000000000000000000000000000000000000000..f54095baec180095f2a712abeeb55a3d
 +```
 +
 +The server listens on `http://localhost:5000`. Opening this URL in a browser
-+shows a simple page with forms for uploading an XML file and creating habits.
-+Existing habits are listed with buttons so you can quickly mark today&#39;s values.
++shows a simple page styled with **Bootstrap**. You can upload an XML file and
++create habits there. Existing habits are listed with buttons so you can quickly
++mark today&#39;s values.
 +After uploading a file, the page lists the metrics it detected.
 +Uploaded data are aggregated per day and stored in a small SQLite database.
 +The `/analytics` page now computes correlations between all stored metrics and
@@ -423,104 +424,114 @@ index 0000000000000000000000000000000000000000..4b0b79a6602ed1d790412ef8cc178109
 +pandas
 diff --git a/templates/analytics.html b/templates/analytics.html
 new file mode 100644
-index 0000000000000000000000000000000000000000..03f7e40e42b21b43d0f14adab76e11707383fe61
+index 0000000000000000000000000000000000000000..0104d5b38f48eb084b7a5d5578c4bf6687f6c143
 --- /dev/null
 +++ b/templates/analytics.html
 @@ -0,0 +1,17 @@
 +{% extends 'base.html' %}
 +{% block content %}
-+<h2>Analytics</h2>
-+<div>
-+  <a href="/analytics?accuracy=high" class="btn">High</a>
-+  <a href="/analytics?accuracy=medium" class="btn">Medium</a>
-+  <a href="/analytics?accuracy=low" class="btn">Low</a>
++<h2 class="mb-3">Analytics</h2>
++<div class="mb-3">
++  <a href="/analytics?accuracy=high" class="btn btn-sm btn-primary">High</a>
++  <a href="/analytics?accuracy=medium" class="btn btn-sm btn-secondary">Medium</a>
++  <a href="/analytics?accuracy=low" class="btn btn-sm btn-secondary">Low</a>
 +</div>
-+<pre>{{ message }}</pre>
++<pre class="bg-light p-3">{{ message }}</pre>
 +{% if summaries %}
-+<ul>
++<ul class="list-group">
 +  {% for s in summaries %}
-+  <li>{{ s }}</li>
++  <li class="list-group-item">{{ s }}</li>
 +  {% endfor %}
 +</ul>
 +{% endif %}
 +{% endblock %}
 diff --git a/templates/base.html b/templates/base.html
 new file mode 100644
-index 0000000000000000000000000000000000000000..245e4aaa27e661cba79175c2602e3bf22399b670
+index 0000000000000000000000000000000000000000..f1b3268f319136d51a4df2c642677f05d4401fdb
 --- /dev/null
 +++ b/templates/base.html
-@@ -0,0 +1,22 @@
+@@ -0,0 +1,26 @@
 +<!DOCTYPE html>
 +<html lang="en">
 +<head>
 +    <meta charset="UTF-8" />
 +    <title>Health Habit Tracker</title>
++    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 +    <style>
-+      body { font-family: Arial, sans-serif; margin: 2em; background: #f8f8f8; }
-+      .container { max-width: 700px; margin: auto; background: white; padding: 2em; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
-+      form { margin-bottom: 1.5em; padding: 1em; border: 1px solid #ccc; }
-+      label { display: block; margin-top: 0.5em; }
-+      input[type="text"], input[type="date"], select { width: 100%; }
-+      input[type="submit"], button { margin-top: 0.5em; }
-+      .btn { padding: 0.3em 0.8em; background:#007bff; color:white; text-decoration:none; margin-right:0.3em; }
++      body { background: #f8f8f8; }
 +    </style>
 +</head>
 +<body>
++<nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
++  <div class="container-fluid">
++    <a class="navbar-brand" href="/">Health Habit Tracker</a>
++    <div class="navbar-nav">
++      <a class="nav-link" href="/">Home</a>
++      <a class="nav-link" href="/analytics">Analytics</a>
++    </div>
++  </div>
++</nav>
 +<div class="container">
-+<h1>Health Habit Tracker</h1>
 +{% block content %}{% endblock %}
 +</div>
++<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 +</body>
 +</html>
 diff --git a/templates/index.html b/templates/index.html
 new file mode 100644
-index 0000000000000000000000000000000000000000..5c4aef6ce8c988882c583744aae25f4cf7511901
+index 0000000000000000000000000000000000000000..d3c3971edfcb3a54de2bbe99fb25a35bcf8a4d3f
 --- /dev/null
 +++ b/templates/index.html
-@@ -0,0 +1,59 @@
+@@ -0,0 +1,65 @@
 +{% extends 'base.html' %}
 +{% block content %}
-+<h2>Upload Apple Health XML</h2>
-+<form action="/upload" method="post" enctype="multipart/form-data">
-+  <input type="file" name="file" required>
-+  <input type="submit" value="Upload">
++<h2 class="mb-3">Upload Apple Health XML</h2>
++<form action="/upload" method="post" enctype="multipart/form-data" class="mb-4 p-3 bg-white rounded shadow-sm">
++  <div class="mb-3">
++    <input type="file" name="file" class="form-control" required>
++  </div>
++  <button type="submit" class="btn btn-primary">Upload</button>
 +</form>
 +
-+<h2>Create Habit</h2>
-+<form action="/habits" method="post" id="habit-form">
-+  <label>Name</label>
-+  <input type="text" name="name" required>
-+  <label>Input Type</label>
-+  <select name="input_type">
-+    <option value="boolean">Yes/No</option>
-+    <option value="number">Number</option>
-+    <option value="scale3">Low/Medium/High</option>
-+    <option value="scale5">1 to 5</option>
-+  </select>
-+  <input type="submit" value="Create">
++<h2 class="mb-3">Create Habit</h2>
++<form action="/habits" method="post" id="habit-form" class="mb-4 p-3 bg-white rounded shadow-sm">
++  <div class="mb-3">
++    <label class="form-label">Name</label>
++    <input type="text" name="name" class="form-control" required>
++  </div>
++  <div class="mb-3">
++    <label class="form-label">Input Type</label>
++    <select name="input_type" class="form-select">
++      <option value="boolean">Yes/No</option>
++      <option value="number">Number</option>
++      <option value="scale3">Low/Medium/High</option>
++      <option value="scale5">1 to 5</option>
++    </select>
++  </div>
++  <button type="submit" class="btn btn-success">Create</button>
 +</form>
 +
 +{% if habits %}
 +<h2>Today&#39;s Habits</h2>
 +{% set today = ("now"|date("%Y-%m-%d")) %}
 +{% for h in habits %}
-+  <form action="/habit_entries" method="post" style="margin-bottom:0.5em;">
++  <form action="/habit_entries" method="post" class="mb-2">
 +    <input type="hidden" name="habit_id" value="{{ h[0] }}">
 +    <input type="hidden" name="entry_date" value="{{ today }}">
 +    <strong>{{ h[1] }}</strong>
 +    {% if h[2] == 'boolean' %}
-+      <button name="value" value="1">Yes</button>
-+      <button name="value" value="0">No</button>
++      <button name="value" value="1" class="btn btn-sm btn-outline-primary">Yes</button>
++      <button name="value" value="0" class="btn btn-sm btn-outline-secondary">No</button>
 +    {% elif h[2] == 'number' %}
-+      <input type="number" name="value" step="any">
-+      <input type="submit" value="Save">
++      <input type="number" name="value" step="any" class="form-control d-inline-block w-auto">
++      <button type="submit" class="btn btn-sm btn-primary">Save</button>
 +    {% elif h[2] == 'scale3' %}
-+      <button name="value" value="low">Low</button>
-+      <button name="value" value="medium">Medium</button>
-+      <button name="value" value="high">High</button>
++      <button name="value" value="low" class="btn btn-sm btn-outline-secondary">Low</button>
++      <button name="value" value="medium" class="btn btn-sm btn-outline-secondary">Medium</button>
++      <button name="value" value="high" class="btn btn-sm btn-outline-secondary">High</button>
 +    {% elif h[2] == 'scale5' %}
 +      {% for i in range(1,6) %}
-+        <button name="value" value="{{ i }}">{{ i }}</button>
++        <button name="value" value="{{ i }}" class="btn btn-sm btn-outline-secondary">{{ i }}</button>
 +      {% endfor %}
 +    {% endif %}
 +  </form>
@@ -537,4 +548,3 @@ index 0000000000000000000000000000000000000000..5c4aef6ce8c988882c583744aae25f4c
 +</ul>
 +{% endif %}
 +{% endblock %}
-
