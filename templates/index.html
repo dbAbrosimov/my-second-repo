@@ -63,3 +63,68 @@
 </ul>
 {% endif %}
 {% endblock %}
+{% extends 'base.html' %}
+{% block content %}
+<h2 class="mb-3">Upload Apple Health XML</h2>
+<form action="/upload" method="post" enctype="multipart/form-data" class="mb-4 p-3 bg-white rounded shadow-sm">
+  <div class="mb-3">
+    <input type="file" name="file" class="form-control" required>
+  </div>
+  <button type="submit" class="btn btn-primary">Upload</button>
+</form>
+
+<h2 class="mb-3">Create Habit</h2>
+<form action="/habits" method="post" id="habit-form" class="mb-4 p-3 bg-white rounded shadow-sm">
+  <div class="mb-3">
+    <label class="form-label">Name</label>
+    <input type="text" name="name" class="form-control" required>
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Input Type</label>
+    <select name="input_type" class="form-select">
+      <option value="boolean">Yes/No</option>
+      <option value="number">Number</option>
+      <option value="scale3">Low/Medium/High</option>
+      <option value="scale5">1 to 5</option>
+    </select>
+  </div>
+  <button type="submit" class="btn btn-success">Create</button>
+</form>
+
+{% if habits %}
+<h2>Today&#39;s Habits</h2>
+{% set today = ("now"|date("%Y-%m-%d")) %}
+{% for h in habits %}
+  <form action="/habit_entries" method="post" class="mb-2">
+    <input type="hidden" name="habit_id" value="{{ h[0] }}">
+    <input type="hidden" name="entry_date" value="{{ today }}">
+    <strong>{{ h[1] }}</strong>
+    {% if h[2] == 'boolean' %}
+      <button name="value" value="1" class="btn btn-sm btn-outline-primary">Yes</button>
+      <button name="value" value="0" class="btn btn-sm btn-outline-secondary">No</button>
+    {% elif h[2] == 'number' %}
+      <input type="number" name="value" step="any" class="form-control d-inline-block w-auto">
+      <button type="submit" class="btn btn-sm btn-primary">Save</button>
+    {% elif h[2] == 'scale3' %}
+      <button name="value" value="low" class="btn btn-sm btn-outline-secondary">Low</button>
+      <button name="value" value="medium" class="btn btn-sm btn-outline-secondary">Medium</button>
+      <button name="value" value="high" class="btn btn-sm btn-outline-secondary">High</button>
+    {% elif h[2] == 'scale5' %}
+      {% for i in range(1,6) %}
+        <button name="value" value="{{ i }}" class="btn btn-sm btn-outline-secondary">{{ i }}</button>
+      {% endfor %}
+    {% endif %}
+  </form>
+{% endfor %}
+{% endif %}
+
+<p><a href="/analytics">View Analytics</a> (use <code>?accuracy=high|medium|low</code>)</p>
+{% if metrics %}
+<h3>Metrics found in last upload:</h3>
+<ul>
+  {% for m in metrics %}
+  <li>{{ m }}</li>
+  {% endfor %}
+</ul>
+{% endif %}
+{% endblock %}

@@ -1,34 +1,3 @@
-diff --git a/README.md b/README.md
-index 65258d8..c8bd283 100644
---- a/README.md
-+++ b/README.md
-@@ -87,3 +87,15 @@ walkthrough if you're setting up a Python project for the first time.
- If you ever remove the `venv/` folder, you can recreate it using the same steps
- above. The SQLite database (`app.db`) and uploaded files (`uploads/`) are stored
- locally in the project directory.
-+
-+## Creating a diff patch
-+
-+If you want to generate a Unix-style patch file with the latest staged changes,
-+run:
-+
-+```bash
-+./generate_patch.sh
-+```
-+
-+This script saves the diff to `update.patch`. Commit this file along with your
-+changes if you wish to share the patch separately.
-diff --git a/generate_patch.sh b/generate_patch.sh
-new file mode 100755
-index 0000000..684d9cf
---- /dev/null
-+++ b/generate_patch.sh
-@@ -0,0 +1,5 @@
-+#!/bin/bash
-+# Save diff of staged changes to update.patch in unified format
-+
-+git diff --cached -u > update.patch
-+printf 'Patch saved to update.patch\n'
 diff --git a/.gitignore b/.gitignore
 new file mode 100644
 index 0000000000000000000000000000000000000000..55fb900fcc53ffc2fd544506b05590fbaf95c544
