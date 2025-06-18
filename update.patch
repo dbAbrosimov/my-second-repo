@@ -1,3 +1,18 @@
+diff --git a/app.py b/app.py
+index 1634294..a15ed5f 100644
+--- a/app.py
++++ b/app.py
+@@ -30,6 +30,10 @@ def prettify_type(raw):
+         if raw.startswith(p):
+             raw = raw[len(p):]
+             break
++    if raw.startswith('Apple'):
++        raw = raw[len('Apple'):]
++    if raw.startswith('Sleeping'):
++        raw = raw[len('Sleeping'):]
+     if raw.startswith('HK'):
+         raw = raw[2:]
+     if raw.endswith('Identifier'):
 diff --git a/.gitignore b/.gitignore
 new file mode 100644
 index 0000000000000000000000000000000000000000..55fb900fcc53ffc2fd544506b05590fbaf95c544
@@ -179,10 +194,10 @@ index 0000000000000000000000000000000000000000..44d4f9cc1b191d0131f5ad9402a60374
 +
 diff --git a/app.py b/app.py
 new file mode 100644
-index 0000000000000000000000000000000000000000..1a8916d2485e6c6c2651e8deef6c1f0192ca46d7
+index 0000000000000000000000000000000000000000..a15ed5f5fa6d7abe7c6811edaead95ec5d0f28bf
 --- /dev/null
 +++ b/app.py
-@@ -0,0 +1,256 @@
+@@ -0,0 +1,262 @@
 +from flask import Flask, request, jsonify, render_template, redirect, url_for
 +from werkzeug.utils import secure_filename
 +import sqlite3
@@ -192,6 +207,7 @@ index 0000000000000000000000000000000000000000..1a8916d2485e6c6c2651e8deef6c1f01
 +import pandas as pd
 +import numpy as np
 +import os
++import datetime
 +
 +app = Flask(__name__)
 +app.config['UPLOAD_FOLDER'] = 'uploads'
@@ -214,6 +230,10 @@ index 0000000000000000000000000000000000000000..1a8916d2485e6c6c2651e8deef6c1f01
 +        if raw.startswith(p):
 +            raw = raw[len(p):]
 +            break
++    if raw.startswith('Apple'):
++        raw = raw[len('Apple'):]
++    if raw.startswith('Sleeping'):
++        raw = raw[len('Sleeping'):]
 +    if raw.startswith('HK'):
 +        raw = raw[2:]
 +    if raw.endswith('Identifier'):
@@ -435,7 +455,8 @@ index 0000000000000000000000000000000000000000..1a8916d2485e6c6c2651e8deef6c1f01
 +    conn = sqlite3.connect(DB_PATH)
 +    habits = conn.execute('SELECT id, name, input_type FROM habits').fetchall()
 +    conn.close()
-+    return render_template('index.html', habits=habits)
++    today = datetime.date.today().strftime('%Y-%m-%d')
++    return render_template('index.html', habits=habits, today=today)
 +
 +if __name__ == '__main__':
 +    app.run(debug=True)
@@ -516,10 +537,10 @@ index 0000000000000000000000000000000000000000..f1b3268f319136d51a4df2c642677f05
 +</html>
 diff --git a/templates/index.html b/templates/index.html
 new file mode 100644
-index 0000000000000000000000000000000000000000..d3c3971edfcb3a54de2bbe99fb25a35bcf8a4d3f
+index 0000000000000000000000000000000000000000..1da38b9dfdf84d3d8478a7e05e2ab0f00de1fa60
 --- /dev/null
 +++ b/templates/index.html
-@@ -0,0 +1,65 @@
+@@ -0,0 +1,64 @@
 +{% extends 'base.html' %}
 +{% block content %}
 +<h2 class="mb-3">Upload Apple Health XML</h2>
@@ -550,7 +571,6 @@ index 0000000000000000000000000000000000000000..d3c3971edfcb3a54de2bbe99fb25a35b
 +
 +{% if habits %}
 +<h2>Today&#39;s Habits</h2>
-+{% set today = ("now"|date("%Y-%m-%d")) %}
 +{% for h in habits %}
 +  <form action="/habit_entries" method="post" class="mb-2">
 +    <input type="hidden" name="habit_id" value="{{ h[0] }}">
@@ -587,38 +607,22 @@ index 0000000000000000000000000000000000000000..d3c3971edfcb3a54de2bbe99fb25a35b
 +{% endblock %}
 diff --git a/update.patch b/update.patch
 new file mode 100644
-index 0000000000000000000000000000000000000000..d6b02fde0b5187700a6f7cbd973fed4851ff6098
+index 0000000000000000000000000000000000000000..5d8bb5cde8c721cb5583a30d2e96ebf1d957440a
 --- /dev/null
 +++ b/update.patch
-@@ -0,0 +1,31 @@
-+diff --git a/README.md b/README.md
-+index 65258d8..c8bd283 100644
-+--- a/README.md
-++++ b/README.md
-+@@ -87,3 +87,15 @@ walkthrough if you're setting up a Python project for the first time.
-+ If you ever remove the `venv/` folder, you can recreate it using the same steps
-+ above. The SQLite database (`app.db`) and uploaded files (`uploads/`) are stored
-+ locally in the project directory.
-++
-++## Creating a diff patch
-++
-++If you want to generate a Unix-style patch file with the latest staged changes,
-++run:
-++
-++```bash
-++./generate_patch.sh
-++```
-++
-++This script saves the diff to `update.patch`. Commit this file along with your
-++changes if you wish to share the patch separately.
-+diff --git a/generate_patch.sh b/generate_patch.sh
-+new file mode 100755
-+index 0000000..684d9cf
-+--- /dev/null
-++++ b/generate_patch.sh
-+@@ -0,0 +1,5 @@
-++#!/bin/bash
-++# Save diff of staged changes to update.patch in unified format
-++
-++git diff --cached -u > update.patch
-++printf 'Patch saved to update.patch\n'
+@@ -0,0 +1,15 @@
++diff --git a/app.py b/app.py
++index 1634294..a15ed5f 100644
++--- a/app.py
+++++ b/app.py
++@@ -30,6 +30,10 @@ def prettify_type(raw):
++         if raw.startswith(p):
++             raw = raw[len(p):]
++             break
+++    if raw.startswith('Apple'):
+++        raw = raw[len('Apple'):]
+++    if raw.startswith('Sleeping'):
+++        raw = raw[len('Sleeping'):]
++     if raw.startswith('HK'):
++         raw = raw[2:]
++     if raw.endswith('Identifier'):
