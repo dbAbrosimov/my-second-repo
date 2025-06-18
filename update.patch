@@ -1,3 +1,34 @@
+diff --git a/README.md b/README.md
+index 65258d8..c8bd283 100644
+--- a/README.md
++++ b/README.md
+@@ -87,3 +87,15 @@ walkthrough if you're setting up a Python project for the first time.
+ If you ever remove the `venv/` folder, you can recreate it using the same steps
+ above. The SQLite database (`app.db`) and uploaded files (`uploads/`) are stored
+ locally in the project directory.
++
++## Creating a diff patch
++
++If you want to generate a Unix-style patch file with the latest staged changes,
++run:
++
++```bash
++./generate_patch.sh
++```
++
++This script saves the diff to `update.patch`. Commit this file along with your
++changes if you wish to share the patch separately.
+diff --git a/generate_patch.sh b/generate_patch.sh
+new file mode 100755
+index 0000000..684d9cf
+--- /dev/null
++++ b/generate_patch.sh
+@@ -0,0 +1,5 @@
++#!/bin/bash
++# Save diff of staged changes to update.patch in unified format
++
++git diff --cached -u > update.patch
++printf 'Patch saved to update.patch\n'
 diff --git a/.gitignore b/.gitignore
 new file mode 100644
 index 0000000000000000000000000000000000000000..55fb900fcc53ffc2fd544506b05590fbaf95c544
@@ -10,10 +41,10 @@ index 0000000000000000000000000000000000000000..55fb900fcc53ffc2fd544506b05590fb
 +uploads/
 diff --git a/README.md b/README.md
 new file mode 100644
-index 0000000000000000000000000000000000000000..72c102a85f563d4a849a31826ad457d8a86bdc31
+index 0000000000000000000000000000000000000000..c8bd283805e75526f97fc0ba731d88d381ccb824
 --- /dev/null
 +++ b/README.md
-@@ -0,0 +1,88 @@
+@@ -0,0 +1,101 @@
 +# Health Habit Tracker (Prototype)
 +
 +This is a minimal Flask application demonstrating how one might upload Apple Health XML data,
@@ -38,8 +69,9 @@ index 0000000000000000000000000000000000000000..72c102a85f563d4a849a31826ad457d8
 +
 +The server listens on `http://localhost:5000`. Opening this URL in a browser
 +shows a simple page styled with **Bootstrap**. You can upload an XML file and
-+create habits there. Existing habits are listed with buttons so you can quickly
-+mark today&#39;s values.
++create habits there. When adding a habit you choose how to record it:
++`Yes/No`, a number, a `Low/Medium/High` scale, or a `1..5` scale. Existing
++habits are listed with buttons so you can quickly mark today&#39;s values.
 +After uploading a file, the page lists the metrics it detected.
 +Uploaded data are aggregated per day and stored in a small SQLite database.
 +The `/analytics` page now computes correlations between all stored metrics and
@@ -102,12 +134,24 @@ index 0000000000000000000000000000000000000000..72c102a85f563d4a849a31826ad457d8
 +If you ever remove the `venv/` folder, you can recreate it using the same steps
 +above. The SQLite database (`app.db`) and uploaded files (`uploads/`) are stored
 +locally in the project directory.
++
++## Creating a diff patch
++
++If you want to generate a Unix-style patch file with the latest staged changes,
++run:
++
++```bash
++./generate_patch.sh
++```
++
++This script saves the diff to `update.patch`. Commit this file along with your
++changes if you wish to share the patch separately.
 diff --git a/README_mac_ru.md b/README_mac_ru.md
 new file mode 100644
-index 0000000000000000000000000000000000000000..de023b83ab7d73cfda07825f4263cc583c709ffe
+index 0000000000000000000000000000000000000000..44d4f9cc1b191d0131f5ad9402a60374968a18c7
 --- /dev/null
 +++ b/README_mac_ru.md
-@@ -0,0 +1,55 @@
+@@ -0,0 +1,56 @@
 +# Быстрый старт на Mac
 +
 +Эти шаги помогут запустить прототип приложения на Mac.
@@ -152,8 +196,9 @@ index 0000000000000000000000000000000000000000..de023b83ab7d73cfda07825f4263cc58
 +   ```
 +   Сервер будет работать на `http://localhost:5000`.
 +  Перейдите по этому адресу через браузер. На главной странице можно загрузить
-+  XML и создать привычки. Ниже появится список привычек с кнопками для выбора
-+  значения на сегодня. После загрузки файла метрики показываются в
++  XML и создать привычки. При создании выберите формат значения: `да/нет`,
++  число, шкала `мало/средне/много` или `1..5`. Ниже появится список привычек с
++  кнопками для выбора значения на сегодня. После загрузки файла метрики показываются в
 +  удобном виде (например, «Apple Stand Time» или «Sleeping Wrist Temperature»). Откройте `/analytics`, чтобы
 +  увидеть корреляции. На странице есть кнопки выбора точности (`high`,
 +  `medium`, `low`). Тривиальные связи скрываются по умолчанию, но их можно
@@ -165,10 +210,10 @@ index 0000000000000000000000000000000000000000..de023b83ab7d73cfda07825f4263cc58
 +
 diff --git a/app.py b/app.py
 new file mode 100644
-index 0000000000000000000000000000000000000000..5a472908c2d2c0bc0f64655309741a267525838e
+index 0000000000000000000000000000000000000000..1a8916d2485e6c6c2651e8deef6c1f0192ca46d7
 --- /dev/null
 +++ b/app.py
-@@ -0,0 +1,246 @@
+@@ -0,0 +1,256 @@
 +from flask import Flask, request, jsonify, render_template, redirect, url_for
 +from werkzeug.utils import secure_filename
 +import sqlite3
@@ -360,6 +405,16 @@ index 0000000000000000000000000000000000000000..5a472908c2d2c0bc0f64655309741a26
 +            val = row['value']
 +            if t == 'boolean':
 +                return 1 if str(val).lower() in ('1', 'yes', 'true', 'да') else 0
++            if t == 'scale3':
++                mapping = {'low': 1, 'medium': 2, 'high': 3}
++                return mapping.get(str(val).lower())
++            if t == 'scale5':
++                try:
++                    n = int(val)
++                    if 1 <= n <= 5:
++                        return float(n)
++                except ValueError:
++                    return None
 +            try:
 +                return float(val)
 +            except ValueError:
@@ -415,6 +470,17 @@ index 0000000000000000000000000000000000000000..5a472908c2d2c0bc0f64655309741a26
 +
 +if __name__ == '__main__':
 +    app.run(debug=True)
+diff --git a/generate_patch.sh b/generate_patch.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..684d9cf2ba11cca4f2ec0d9b17f4ae9ebacb087d
+--- /dev/null
++++ b/generate_patch.sh
+@@ -0,0 +1,5 @@
++#!/bin/bash
++# Save diff of staged changes to update.patch in unified format
++
++git diff --cached -u > update.patch
++printf 'Patch saved to update.patch\n'
 diff --git a/requirements.txt b/requirements.txt
 new file mode 100644
 index 0000000000000000000000000000000000000000..4b0b79a6602ed1d790412ef8cc1781095d7e4dee
@@ -550,3 +616,40 @@ index 0000000000000000000000000000000000000000..d3c3971edfcb3a54de2bbe99fb25a35b
 +</ul>
 +{% endif %}
 +{% endblock %}
+diff --git a/update.patch b/update.patch
+new file mode 100644
+index 0000000000000000000000000000000000000000..d6b02fde0b5187700a6f7cbd973fed4851ff6098
+--- /dev/null
++++ b/update.patch
+@@ -0,0 +1,31 @@
++diff --git a/README.md b/README.md
++index 65258d8..c8bd283 100644
++--- a/README.md
+++++ b/README.md
++@@ -87,3 +87,15 @@ walkthrough if you're setting up a Python project for the first time.
++ If you ever remove the `venv/` folder, you can recreate it using the same steps
++ above. The SQLite database (`app.db`) and uploaded files (`uploads/`) are stored
++ locally in the project directory.
+++
+++## Creating a diff patch
+++
+++If you want to generate a Unix-style patch file with the latest staged changes,
+++run:
+++
+++```bash
+++./generate_patch.sh
+++```
+++
+++This script saves the diff to `update.patch`. Commit this file along with your
+++changes if you wish to share the patch separately.
++diff --git a/generate_patch.sh b/generate_patch.sh
++new file mode 100755
++index 0000000..684d9cf
++--- /dev/null
+++++ b/generate_patch.sh
++@@ -0,0 +1,5 @@
+++#!/bin/bash
+++# Save diff of staged changes to update.patch in unified format
+++
+++git diff --cached -u > update.patch
+++printf 'Patch saved to update.patch\n'
