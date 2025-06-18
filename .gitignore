@@ -1,7 +1,3 @@
-__pycache__/
-venv/
-app.db
-uploads/
 uploads/xml
 .DS_Store
 __pycache__/
