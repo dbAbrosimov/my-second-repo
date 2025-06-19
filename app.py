@@ -327,6 +327,6 @@ def index():
         habits = conn.execute('SELECT id, name, input_type FROM habits').fetchall()
         today = datetime.date.today().strftime('%Y-%m-%d')
         return render_template('index.html', habits=habits, today=today)
-
+      
 if __name__ == '__main__':
     app.run(debug=True)
