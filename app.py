@@ -212,30 +212,37 @@ def analytics():
     )
     # Rename the ``metric_type`` column before pivoting so that index names
     # created by ``pivot_table`` never collide with an existing column when
-    # ``reset_index()`` is used internally by pandas.
-    df = df.rename(columns={'metric_type': 'metric'})
-    habits_df = pd.read_sql_query(
-        'SELECT habit_entries.entry_date, habits.name, habits.input_type, habit_entries.value '
-        'FROM habit_entries JOIN habits ON habit_entries.habit_id = habits.id',
-        conn
-    )
-    # Explicitly allow duplicate labels in case global pandas options
-    # were set to disallow them. Pivoting with duplicate restrictions
-    # can otherwise raise a ``ValueError`` when inserting index labels.
-    df.flags.allows_duplicate_labels = True
-    habits_df.flags.allows_duplicate_labels = True
-    conn.close()
+    # Compute all pairwise correlations in a DataFrame so we can iterate over
+    # the significant ones later. ``corr()`` automatically ignores non-numeric
+    # columns. Using ``np.triu`` ensures we keep each unordered pair only once.
+    corr_matrix = pivot.corr(min_periods=min_pts)
+    mask = np.triu(np.ones_like(corr_matrix, dtype=bool), k=1)
+    pairs_df = corr_matrix.where(mask).stack().reset_index()
+    pairs_df.columns = ['metric1', 'metric2', 'corr']
 
-    if df.empty:
-        return render_template('analytics.html', message='No metrics uploaded yet')
+    # Drop trivial or weak correlations
+    if not show_trivial:
+        pairs_df = pairs_df[~pairs_df.apply(
+            lambda r: frozenset({r['metric1'], r['metric2']}) in TRIVIAL_PAIRS,
+            axis=1,
+        )]
+    pairs_df = pairs_df[(pairs_df['corr'].abs() >= thresh) & (pairs_df['corr'].abs() < 0.99)]
 
-    pivot = df.pivot_table(
-        values='value', index='metric_date', columns='metric', aggfunc='first'
-    )
-    # ``pivot_table`` may assign the ``index`` name "metric_date" which can
-    # clash with an existing column when ``reset_index()`` is called later.
-    # Clearing the index name avoids pandas errors about inserting duplicate
-    # ``metric`` columns when duplicate labels are not allowed.
+    for _, row in pairs_df.iterrows():
+        c1, c2, corr = row['metric1'], row['metric2'], row['corr']
+        correlations.append((c1, c2, corr))
+        sub = pivot[[c1, c2]].dropna()
+        if len(sub) >= min_pts:
+            slope, _ = np.polyfit(sub[c1], sub[c2], 1)
+            mean_x = sub[c1].mean()
+            mean_y = sub[c2].mean()
+            step = sub[c1].std()
+            if step:
+                predicted = mean_y + slope * step
+                summaries.append(
+                    f"If your {c1.lower()} rises from {mean_x:.0f} to {mean_x+step:.0f}, "
+                    f"{c2.lower()} may change from {mean_y:.0f} to {predicted:.0f}."
+                )
     pivot.index.name = None
     pivot.flags.allows_duplicate_labels = True
 
