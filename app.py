@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify, render_template, redirect, url_for
 from werkzeug.utils import secure_filename
 import sqlite3
-import xml.etree.ElementTree as ET
+import defusedxml.ElementTree as ET
 from collections import defaultdict
 import statistics
 import pandas as pd
@@ -262,7 +262,7 @@ if __name__ == '__main__':
 from flask import Flask, request, jsonify, render_template, redirect, url_for
 from werkzeug.utils import secure_filename
 import sqlite3
-import xml.etree.ElementTree as ET
+import defusedxml.ElementTree as ET
 from collections import defaultdict
 import statistics
 import pandas as pd
@@ -498,7 +498,7 @@ if __name__ == '__main__':
 from flask import Flask, request, jsonify, render_template, redirect, url_for
 from werkzeug.utils import secure_filename
 import sqlite3
-import xml.etree.ElementTree as ET
+import defusedxml.ElementTree as ET
 from collections import defaultdict
 import statistics
 import pandas as pd
