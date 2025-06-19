@@ -1,21 +1,70 @@
 {% extends 'base.html' %}
-
 {% block content %}
-<h2 class="mb-4">Analytics</h2>
-
-{% if message %}
-<pre class="p-3 bg-light border rounded">{{ message }}</pre>
-{% endif %}
-
-{% if summaries %}
-<div class="mt-4">
-  <h4>Summaries</h4>
-  <ul class="list-group">
-  {% for s in summaries %}
-    <li class="list-group-item">{{ s }}</li>
+<h2>Analytics</h2>
+<div class="mb-3">
+  <a href="{{ url_for('analytics', accuracy='high', period=period) }}" class="btn btn-sm btn-outline-primary">High</a>
+  <a href="{{ url_for('analytics', accuracy='medium', period=period) }}" class="btn btn-sm btn-outline-primary">Medium</a>
+  <a href="{{ url_for('analytics', accuracy='low', period=period) }}" class="btn btn-sm btn-outline-primary">Low</a>
+</div>
+<div class="mb-3">
+  <a href="{{ url_for('analytics', accuracy=accuracy, period='day') }}" class="btn btn-sm btn-outline-secondary">Day</a>
+  <a href="{{ url_for('analytics', accuracy=accuracy, period='week') }}" class="btn btn-sm btn-outline-secondary">Week</a>
+  <a href="{{ url_for('analytics', accuracy=accuracy, period='month') }}" class="btn btn-sm btn-outline-secondary">Month</a>
+</div>
+<p>{{ message }}</p>
+{% if correlations %}
+  <ul id="correlation-list">
+  {% for c1, c2, corr in correlations %}
+    <li><a href="#" class="correlation-link" data-metric1="{{ c1 }}" data-metric2="{{ c2 }}">{{ c1 }} vs {{ c2 }}: {{ '%+.2f'|format(corr) }}</a></li>
   {% endfor %}
   </ul>
-</div>
 {% endif %}
+{% if summaries %}
+  <h3>Predictions</h3>
+  <ul>
+  {% for line in summaries %}
+    <li>{{ line }}</li>
+  {% endfor %}
+  </ul>
+{% endif %}
+<script>
+const chartEl = document.getElementById('correlationChart');
+let currentM1 = null;
+let currentM2 = null;
+let chart;
 
+function fetchAndShow() {
+  if (!currentM1 || !currentM2) return;
+  const period = document.getElementById('period-select').value;
+  fetch(`/correlation_data?metric1=${encodeURIComponent(currentM1)}&metric2=${encodeURIComponent(currentM2)}&period=${period}`)
+    .then(r => r.json())
+    .then(data => {
+      if (chart) chart.destroy();
+      chartEl.style.display = 'block';
+      chart = new Chart(chartEl, {
+        type: 'line',
+        data: {
+          labels: data.labels,
+          datasets: [
+            {label: currentM1, data: data.metric1, borderColor: 'blue', fill: false},
+            {label: currentM2, data: data.metric2, borderColor: 'orange', fill: false}
+          ]
+        }
+      });
+      const modal = new bootstrap.Modal(document.getElementById('chartModal'));
+      modal.show();
+    });
+}
+
+document.querySelectorAll('.correlation-link').forEach(el => {
+  el.addEventListener('click', e => {
+    e.preventDefault();
+    currentM1 = el.dataset.metric1;
+    currentM2 = el.dataset.metric2;
+    fetchAndShow();
+  });
+});
+
+document.getElementById('period-select').addEventListener('change', fetchAndShow);
+</script>
 {% endblock %}

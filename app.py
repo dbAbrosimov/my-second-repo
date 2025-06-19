@@ -15,6 +15,14 @@ app.config['UPLOAD_FOLDER'] = 'uploads'
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 DB_PATH = 'app.db'
 
+# Configurable start of day as HH:MM (default 03:00)
+DAY_START_HOUR = os.environ.get('DAY_START_HOUR', '03:00')
+try:
+    _h, _m = map(int, DAY_START_HOUR.split(':'))
+    DAY_START_TIME = datetime.time(_h, _m)
+except Exception:
+    DAY_START_TIME = datetime.time(3, 0)
+
 TRIVIAL_PAIRS = {frozenset({'Body Fat Percentage', 'Body Mass'})}
 
 def prettify_type(raw):
@@ -51,28 +59,26 @@ def prettify_type(raw):
     return name
 
 def init_db():
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS habits (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name TEXT,
-                    input_type TEXT
-                )''')
-    c.execute('''CREATE TABLE IF NOT EXISTS daily_metrics (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    metric_type TEXT,
-                    metric_date TEXT,
-                    value REAL
-                )''')
-    c.execute('''CREATE TABLE IF NOT EXISTS habit_entries (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    habit_id INTEGER,
-                    entry_date TEXT,
-                    value TEXT,
-                    FOREIGN KEY(habit_id) REFERENCES habits(id)
-                )''')
-    conn.commit()
-    conn.close()
+    with sqlite3.connect(DB_PATH) as conn:
+        c = conn.cursor()
+        c.execute('''CREATE TABLE IF NOT EXISTS habits (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        name TEXT,
+                        input_type TEXT
+                    )''')
+        c.execute('''CREATE TABLE IF NOT EXISTS daily_metrics (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        metric_type TEXT,
+                        metric_date TEXT,
+                        value REAL
+                    )''')
+        c.execute('''CREATE TABLE IF NOT EXISTS habit_entries (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        habit_id INTEGER,
+                        entry_date TEXT,
+                        value TEXT,
+                        FOREIGN KEY(habit_id) REFERENCES habits(id)
+                    )''')
 
 init_db()
 
@@ -83,12 +89,10 @@ def create_habit():
         return jsonify({'error': 'No data provided'}), 400
     name = data.get('name')
     input_type = data.get('input_type')
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute('INSERT INTO habits (name, input_type) VALUES (?, ?)', (name, input_type))
-    conn.commit()
-    habit_id = c.lastrowid
-    conn.close()
+    with sqlite3.connect(DB_PATH) as conn:
+        c = conn.cursor()
+        c.execute('INSERT INTO habits (name, input_type) VALUES (?, ?)', (name, input_type))
+        habit_id = c.lastrowid
     if request.form:
         return redirect(url_for('index'))
     return jsonify({'id': habit_id, 'name': name, 'input_type': input_type})
@@ -104,15 +108,13 @@ def add_entry():
     entry_date = data.get('entry_date')
     value = data.get('value')
 
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute(
-        'INSERT INTO habit_entries (habit_id, entry_date, value) '
-        'VALUES (?, ?, ?)',
-        (habit_id, entry_date, value)
-    )
-    conn.commit()
-    conn.close()
+    with sqlite3.connect(DB_PATH) as conn:
+        c = conn.cursor()
+        c.execute(
+            'INSERT INTO habit_entries (habit_id, entry_date, value) '
+            'VALUES (?, ?, ?)',
+            (habit_id, entry_date, value)
+        )
 
     if request.form:
         return redirect(url_for('index'))
@@ -137,37 +139,67 @@ def parse_xml(path):
     daily = defaultdict(lambda: defaultdict(list))
     for event, elem in ET.iterparse(path, events=('end',)):
         if elem.tag == 'Record':
-            mtype = prettify_type(elem.attrib.get('type'))
+            raw_type = elem.attrib.get('type')
             value = elem.attrib.get('value')
-            start = elem.attrib.get('startDate', '')[:10]
+            start_date = elem.attrib.get('startDate')
+            end_date = elem.attrib.get('endDate')
+            mtype = prettify_type(raw_type)
+
+            day_key = None
+            s_dt = e_dt = None
+            if start_date:
+                try:
+                    s_dt = datetime.datetime.fromisoformat(start_date)
+                    e_dt = datetime.datetime.fromisoformat(end_date) if end_date else None
+                    cutoff = datetime.datetime.combine(s_dt.date(), DAY_START_TIME)
+                    if s_dt.time() >= DAY_START_TIME:
+                        cutoff += datetime.timedelta(days=1)
+                    if e_dt and e_dt > cutoff:
+                        day_key = cutoff.date().isoformat()
+                    else:
+                        day_key = s_dt.date().isoformat()
+                except Exception:
+                    day_key = start_date[:10]
+
             try:
                 num = float(value)
             except (TypeError, ValueError):
-                elem.clear()
-                continue
-            daily[mtype][start].append(num)
+                if raw_type and raw_type.endswith('SleepAnalysis') and s_dt and e_dt:
+                    try:
+                        num = (e_dt - s_dt).total_seconds() / 60
+                        stage = prettify_type(value)
+                        stage = stage.replace('Category Value Sleep Analysis ', '')
+                        mtype = stage
+                    except Exception:
+                        elem.clear()
+                        continue
+                else:
+                    elem.clear()
+                    continue
+
+            if day_key:
+                daily[mtype][day_key].append(num)
             elem.clear()
 
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    metrics_found = set()
-    for mtype, days in daily.items():
-        for date, values in days.items():
-            if mtype == 'Step Count':
-                val = sum(values)
-            else:
-                val = statistics.mean(values)
-            c.execute('INSERT INTO daily_metrics (metric_type, metric_date, value) VALUES (?, ?, ?)',
-                      (mtype, date, val))
-            metrics_found.add(mtype)
-    conn.commit()
-    conn.close()
+    with sqlite3.connect(DB_PATH) as conn:
+        c = conn.cursor()
+        metrics_found = set()
+        for mtype, days in daily.items():
+            for date, values in days.items():
+                if mtype == 'Step Count' or 'Asleep' in mtype or 'Awake' in mtype or 'Bed' in mtype:
+                    val = sum(values)
+                else:
+                    val = statistics.mean(values)
+                c.execute('INSERT INTO daily_metrics (metric_type, metric_date, value) VALUES (?, ?, ?)',
+                          (mtype, date, val))
+                metrics_found.add(mtype)
     return {m: None for m in metrics_found}
 
 @app.route('/analytics', methods=['GET'])
 def analytics():
     """Compute correlations between metrics and habits."""
     accuracy = request.args.get('accuracy', 'medium')
+    period = request.args.get('period', 'day')
     thresholds = {'high': 0.6, 'medium': 0.4, 'low': 0.2}
     min_points = {'high': 30, 'medium': 15, 'low': 5}
     thresh = thresholds.get(accuracy, 0.4)
@@ -222,6 +254,8 @@ def analytics():
             except ValueError:
                 return None
 
+        habits_df['entry_date'] = habits_df['entry_date'].astype('datetime64[ns]')
+        habits_df['period'] = habits_df['entry_date'].dt.to_period(p_code)
         habits_df['num_val'] = habits_df.apply(conv, axis=1)
         habit_pivot = habits_df.pivot_table(
             values='num_val', index='entry_date', columns='name', aggfunc='first'
@@ -266,23 +300,47 @@ def analytics():
                     f"{c2.lower()} may change from {mean_y:.0f} to {predicted:.0f}."
                 )
 
-    lines = [f"Accuracy: {accuracy}", f"Found {len(correlations)} significant correlations"]
+    # Lag correlations
+    pivot_prev = pivot_current.shift(1)
+    lag_df = pd.concat([
+        pivot_prev.add_suffix(' (prev)'),
+        pivot_current.add_suffix(' (curr)')
+    ], axis=1)
+    lag_corr = lag_df.corr(min_periods=min_pts)
+    prev_cols = [c for c in lag_corr.columns if c.endswith(' (prev)')]
+    curr_cols = [c for c in lag_corr.columns if c.endswith(' (curr)')]
+    lag_pairs_df = lag_corr.loc[prev_cols, curr_cols].stack().reset_index()
+    lag_pairs_df.columns = ['metric_prev', 'metric_curr', 'corr']
+    if not show_trivial:
+        mask = lag_pairs_df.apply(
+            lambda r: frozenset({r['metric_prev'][:-7], r['metric_curr'][:-7]}) in TRIVIAL_PAIRS,
+            axis=1,
+        )
+        lag_pairs_df = lag_pairs_df[~mask]
+    lag_pairs_df = lag_pairs_df[(lag_pairs_df['corr'].abs() >= thresh) & (lag_pairs_df['corr'].abs() < 0.99)]
+    lag_correlations = [(r['metric_prev'], r['metric_curr'], r['corr']) for _, r in lag_pairs_df.iterrows()]
+
+    lines = [f"Accuracy: {accuracy}", f"Period: {period}", f"Found {len(correlations)} significant correlations"]
     for c1, c2, corr in correlations:
         lines.append(f"{c1} vs {c2}: {corr:+.2f}")
 
+    lines.append("")
+    lines.append(f"Lag correlations ({period}): {len(lag_correlations)} pairs")
+    for c1, c2, corr in lag_correlations:
+        lines.append(f"{c1} -> {c2}: {corr:+.2f}")
+
     message = '\n'.join(lines)
     if request.args.get('json') == '1':
-        return jsonify({'correlations': correlations, 'summaries': summaries})
-    return render_template('analytics.html', message=message, summaries=summaries, accuracy=accuracy)
+        return jsonify({'correlations': correlations, 'lag_correlations': lag_correlations, 'summaries': summaries})
+    return render_template('analytics.html', message=message, summaries=summaries, accuracy=accuracy, period=period)
 
 @app.route('/')
 def index():
     """Render a simple page with forms for common actions."""
-    conn = sqlite3.connect(DB_PATH)
-    habits = conn.execute('SELECT id, name, input_type FROM habits').fetchall()
-    conn.close()
-    today = datetime.date.today().strftime('%Y-%m-%d')
-    return render_template('index.html', habits=habits, today=today)
-
+    with sqlite3.connect(DB_PATH) as conn:
+        habits = conn.execute('SELECT id, name, input_type FROM habits').fetchall()
+        today = datetime.date.today().strftime('%Y-%m-%d')
+        return render_template('index.html', habits=habits, today=today)
+      
 if __name__ == '__main__':
     app.run(debug=True)
