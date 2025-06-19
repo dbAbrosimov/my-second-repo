@@ -47,6 +47,11 @@ to control how strict the correlation threshold is. Trivial relations like
 
 Uploaded files are stored in the `uploads/` directory, and a simple SQLite database is created as `app.db`.
 
+### Day Start Hour
+
+Set the environment variable `DAY_START_HOUR` (format `HH:MM`) to control when a new day begins. The default is `03:00`.
+If a record spans past this time, the measurement is assigned to the day that starts at that hour. For example, sleeping from `22:00` on the 4‑th until `07:00` on the 5‑th counts toward the 5‑th.
+
 ## Beginner Guide
 
 The steps above assume some familiarity with Python. Below is a more detailed
