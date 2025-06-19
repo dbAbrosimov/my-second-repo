@@ -30,8 +30,12 @@ Uploaded data are aggregated per day and stored in a small SQLite database.
 The `/analytics` page now computes correlations between all stored metrics and
 habit entries. Metric names are shown in a human friendly form for all types
 (e.g. `Apple Stand Time`, `Heart Rate`, or `Sleeping Wrist Temperature`).
+Sleep stages from the XML (Awake, In Bed, Asleep Core/Deep/REM) are parsed as
+their durations in minutes so you can analyze how much time was spent in each
+phase per night.
 Use the query parameter `accuracy` (`high`, `medium`, or `low`) or the buttons on the analytics page
-to control how strict the correlation threshold is. Trivial relations like
+to control how strict the correlation threshold is. The `period` parameter (`day`, `week`, or `month`)
+controls how values are grouped when computing lag correlations. Trivial relations like
 `Body Fat Percentage` vs `Body Mass` are hidden unless `show_trivial=1` is passed.
 
 ## Endpoints
@@ -44,6 +48,8 @@ to control how strict the correlation threshold is. Trivial relations like
 
 Uploaded files are stored in the `uploads/` directory, and a simple SQLite database is created as `app.db`.
 
+Set the environment variable `DAY_START_HOUR` (format `HH:MM`) to control when a new day begins. The default is `03:00`.
+If a record spans past this time, the measurement is assigned to the day that starts at that hour. For example, sleeping from `22:00` on the 4‑th until `07:00` on the 5‑th counts toward the 5‑th.
 ## Beginner Guide
 
 The steps above assume some familiarity with Python. Below is a more detailed
