@@ -191,7 +191,10 @@ def analytics():
     if df.empty:
         return render_template('analytics.html', message='No metrics uploaded yet')
 
-    pivot = df.pivot_table(values='value', index='metric_date', columns='metric_type', aggfunc='first')
+    pivot = df.pivot_table(
+        values='value', index='metric_date', columns='metric_type', aggfunc='first'
+    )
+    pivot.flags.allows_duplicate_labels = True
 
     if not habits_df.empty:
         def conv(row):
@@ -215,8 +218,12 @@ def analytics():
                 return None
 
         habits_df['num_val'] = habits_df.apply(conv, axis=1)
-        habit_pivot = habits_df.pivot_table(values='num_val', index='entry_date', columns='name', aggfunc='first')
+        habit_pivot = habits_df.pivot_table(
+            values='num_val', index='entry_date', columns='name', aggfunc='first'
+        )
+        habit_pivot.flags.allows_duplicate_labels = True
         pivot = pivot.join(habit_pivot, how='left')
+        pivot.flags.allows_duplicate_labels = True
 
     correlations = []
     summaries = []
