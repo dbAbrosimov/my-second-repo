@@ -209,8 +209,8 @@ def analytics():
         corr_matrix
         .where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
         .stack()
-        .reset_index()
-        .rename(columns={'level_0': 'metric1', 'level_1': 'metric2', 0: 'corr'})
+        .rename_axis(index=("metric1", "metric2"))
+        .reset_index(name="corr")
     )
 
     if not show_trivial:
