@@ -213,32 +213,41 @@ def analytics():
         habit_pivot = habits_df.pivot_table(values='num_val', index='entry_date', columns='name', aggfunc='first')
         pivot = pivot.join(habit_pivot, how='left')
 
+    corr_matrix = pivot.corr(min_periods=min_pts)
+    pairs_df = (
+        corr_matrix
+        .where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
+        .stack()
+        .reset_index()
+        .rename(columns={'level_0': 'metric1', 'level_1': 'metric2', 0: 'corr'})
+    )
+
+    if not show_trivial:
+        mask = pairs_df.apply(
+            lambda r: frozenset({r['metric1'], r['metric2']}) in TRIVIAL_PAIRS,
+            axis=1,
+        )
+        pairs_df = pairs_df[~mask]
+
+    pairs_df = pairs_df[(pairs_df['corr'].abs() >= thresh) & (pairs_df['corr'].abs() < 0.99)]
+
     correlations = []
     summaries = []
-    cols = list(pivot.columns)
-    for i in range(len(cols)):
-        for j in range(i + 1, len(cols)):
-            c1, c2 = cols[i], cols[j]
-            sub = pivot[[c1, c2]].dropna()
-            if len(sub) < min_pts:
-                continue
-            corr = sub[c1].corr(sub[c2])
-            if corr is None:
-                continue
-            if frozenset({c1, c2}) in TRIVIAL_PAIRS and not show_trivial:
-                continue
-            if abs(corr) >= thresh and abs(corr) < 0.99:
-                correlations.append((c1, c2, corr))
-                slope, intercept = np.polyfit(sub[c1], sub[c2], 1)
-                mean_x = sub[c1].mean()
-                mean_y = sub[c2].mean()
-                step = sub[c1].std()
-                if step:
-                    predicted = mean_y + slope * step
-                    summaries.append(
-                        f"If your {c1.lower()} rises from {mean_x:.0f} to {mean_x+step:.0f}, "
-                        f"{c2.lower()} may change from {mean_y:.0f} to {predicted:.0f}."
-                    )
+    for _, row in pairs_df.iterrows():
+        c1, c2, corr = row['metric1'], row['metric2'], row['corr']
+        correlations.append((c1, c2, corr))
+        sub = pivot[[c1, c2]].dropna()
+        if len(sub) >= 2:
+            slope, _ = np.polyfit(sub[c1], sub[c2], 1)
+            mean_x = sub[c1].mean()
+            mean_y = sub[c2].mean()
+            step = sub[c1].std()
+            if step:
+                predicted = mean_y + slope * step
+                summaries.append(
+                    f"If your {c1.lower()} rises from {mean_x:.0f} to {mean_x+step:.0f}, "
+                    f"{c2.lower()} may change from {mean_y:.0f} to {predicted:.0f}."
+                )
 
     lines = [f"Accuracy: {accuracy}", f"Found {len(correlations)} significant correlations"]
     for c1, c2, corr in correlations:
@@ -460,32 +469,41 @@ def analytics():
         habit_pivot = habits_df.pivot_table(values='num_val', index='entry_date', columns='name', aggfunc='first')
         pivot = pivot.join(habit_pivot, how='left')
 
+    corr_matrix = pivot.corr(min_periods=min_pts)
+    pairs_df = (
+        corr_matrix
+        .where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
+        .stack()
+        .reset_index()
+        .rename(columns={'level_0': 'metric1', 'level_1': 'metric2', 0: 'corr'})
+    )
+
+    if not show_trivial:
+        mask = pairs_df.apply(
+            lambda r: frozenset({r['metric1'], r['metric2']}) in TRIVIAL_PAIRS,
+            axis=1,
+        )
+        pairs_df = pairs_df[~mask]
+
+    pairs_df = pairs_df[(pairs_df['corr'].abs() >= thresh) & (pairs_df['corr'].abs() < 0.99)]
+
     correlations = []
     summaries = []
-    cols = list(pivot.columns)
-    for i in range(len(cols)):
-        for j in range(i + 1, len(cols)):
-            c1, c2 = cols[i], cols[j]
-            sub = pivot[[c1, c2]].dropna()
-            if len(sub) < min_pts:
-                continue
-            corr = sub[c1].corr(sub[c2])
-            if corr is None:
-                continue
-            if frozenset({c1, c2}) in TRIVIAL_PAIRS and not show_trivial:
-                continue
-            if abs(corr) >= thresh and abs(corr) < 0.99:
-                correlations.append((c1, c2, corr))
-                slope, intercept = np.polyfit(sub[c1], sub[c2], 1)
-                mean_x = sub[c1].mean()
-                mean_y = sub[c2].mean()
-                step = sub[c1].std()
-                if step:
-                    predicted = mean_y + slope * step
-                    summaries.append(
-                        f"If your {c1.lower()} rises from {mean_x:.0f} to {mean_x+step:.0f}, "
-                        f"{c2.lower()} may change from {mean_y:.0f} to {predicted:.0f}."
-                    )
+    for _, row in pairs_df.iterrows():
+        c1, c2, corr = row['metric1'], row['metric2'], row['corr']
+        correlations.append((c1, c2, corr))
+        sub = pivot[[c1, c2]].dropna()
+        if len(sub) >= 2:
+            slope, _ = np.polyfit(sub[c1], sub[c2], 1)
+            mean_x = sub[c1].mean()
+            mean_y = sub[c2].mean()
+            step = sub[c1].std()
+            if step:
+                predicted = mean_y + slope * step
+                summaries.append(
+                    f"If your {c1.lower()} rises from {mean_x:.0f} to {mean_x+step:.0f}, "
+                    f"{c2.lower()} may change from {mean_y:.0f} to {predicted:.0f}."
+                )
 
     lines = [f"Accuracy: {accuracy}", f"Found {len(correlations)} significant correlations"]
     for c1, c2, corr in correlations:
@@ -673,17 +691,21 @@ def analytics():
         habit_pivot = habits_df.pivot_table(values='num_val', index='entry_date', columns='name', aggfunc='first')
         pivot = pivot.join(habit_pivot, how='left')
 
+    corr_matrix = pivot.corr(min_periods=min_pts)
+    pairs_df = (
+        corr_matrix
+        .where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
+        .stack()
+        .reset_index()
+        .rename(columns={'level_0': 'metric1', 'level_1': 'metric2', 0: 'corr'})
+    )
+
+    pairs_df = pairs_df[(pairs_df['corr'].abs() >= thresh) & (pairs_df['corr'].abs() < 0.99)]
+
     correlations = []
-    cols = list(pivot.columns)
-    for i in range(len(cols)):
-        for j in range(i + 1, len(cols)):
-            c1, c2 = cols[i], cols[j]
-            sub = pivot[[c1, c2]].dropna()
-            if len(sub) < min_pts:
-                continue
-            corr = sub[c1].corr(sub[c2])
-            if corr is not None and abs(corr) >= thresh and abs(corr) < 0.99:
-                correlations.append((c1, c2, corr))
+    for _, row in pairs_df.iterrows():
+        c1, c2, corr = row['metric1'], row['metric2'], row['corr']
+        correlations.append((c1, c2, corr))
 
     lines = [f"Accuracy: {accuracy}", f"Found {len(correlations)} significant correlations"]
     for c1, c2, corr in correlations:
