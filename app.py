@@ -205,12 +205,15 @@ def analytics():
         pivot = pivot.join(habit_pivot, how='left')
 
     corr_matrix = pivot.corr(min_periods=min_pts)
+    # ensure stacked index names do not collide
+    corr_matrix.index.name = 'metric1'
+    corr_matrix.columns.name = 'metric2'
     pairs_df = (
         corr_matrix
         .where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
         .stack()
         .reset_index()
-        .rename(columns={'level_0': 'metric1', 'level_1': 'metric2', 0: 'corr'})
+        .rename(columns={0: 'corr'})
     )
 
     if not show_trivial:
