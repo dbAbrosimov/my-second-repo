@@ -10,6 +10,11 @@
   <a href="{{ url_for('analytics', accuracy=accuracy, period='day') }}" class="btn btn-sm btn-outline-secondary">Day</a>
   <a href="{{ url_for('analytics', accuracy=accuracy, period='week') }}" class="btn btn-sm btn-outline-secondary">Week</a>
   <a href="{{ url_for('analytics', accuracy=accuracy, period='month') }}" class="btn btn-sm btn-outline-secondary">Month</a>
+  <select id="period-select" class="form-select d-inline w-auto ms-2">
+    <option value="day" {% if period == 'day' %}selected{% endif %}>Day</option>
+    <option value="week" {% if period == 'week' %}selected{% endif %}>Week</option>
+    <option value="month" {% if period == 'month' %}selected{% endif %}>Month</option>
+  </select>
 </div>
 <p>{{ message }}</p>
 {% if correlations %}

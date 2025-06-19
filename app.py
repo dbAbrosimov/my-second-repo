@@ -200,6 +200,8 @@ def analytics():
     """Compute correlations between metrics and habits."""
     accuracy = request.args.get('accuracy', 'medium')
     period = request.args.get('period', 'day')
+    freq_map = {'day': 'D', 'week': 'W', 'month': 'M'}
+    p_code = freq_map.get(period, 'D')
     thresholds = {'high': 0.6, 'medium': 0.4, 'low': 0.2}
     min_points = {'high': 30, 'medium': 15, 'low': 5}
     thresh = thresholds.get(accuracy, 0.4)
@@ -216,6 +218,7 @@ def analytics():
         'FROM habit_entries JOIN habits ON habit_entries.habit_id = habits.id',
         conn
     )
+    df['metric_date'] = pd.to_datetime(df['metric_date'])
     # Explicitly allow duplicate labels in case global pandas options
     # were set to disallow them. Pivoting with duplicate restrictions
     # can otherwise raise a ``ValueError`` when inserting index labels.
@@ -232,6 +235,7 @@ def analytics():
     pivot.index.name = None
     pivot.columns.name = None
     pivot.flags.allows_duplicate_labels = True
+    pivot_current = pivot.resample(p_code).mean()
 
     if not habits_df.empty:
         def conv(row):
@@ -254,22 +258,21 @@ def analytics():
             except ValueError:
                 return None
 
-        habits_df['entry_date'] = habits_df['entry_date'].astype('datetime64[ns]')
-        habits_df['period'] = habits_df['entry_date'].dt.to_period(p_code)
+        habits_df['entry_date'] = pd.to_datetime(habits_df['entry_date'])
         habits_df['num_val'] = habits_df.apply(conv, axis=1)
         habit_pivot = habits_df.pivot_table(
             values='num_val', index='entry_date', columns='name', aggfunc='first'
-        )
+        ).resample(p_code).mean()
         habit_pivot.index.name = None
         habit_pivot.columns.name = None
         habit_pivot.flags.allows_duplicate_labels = True
-        pivot = pivot.join(habit_pivot, how='left')
-        pivot.flags.allows_duplicate_labels = True
+        pivot_current = pivot_current.join(habit_pivot, how='left')
+        pivot_current.flags.allows_duplicate_labels = True
 
     # Compute all pairwise correlations in a DataFrame so we can iterate over
     # the significant ones later. ``corr()`` automatically ignores non-numeric
     # columns. Using ``np.triu`` ensures we keep each unordered pair only once.
-    corr_matrix = pivot.corr(min_periods=min_pts)
+    corr_matrix = pivot_current.corr(min_periods=min_pts)
     mask = np.triu(np.ones_like(corr_matrix, dtype=bool), k=1)
     pairs_df = corr_matrix.where(mask).stack().reset_index()
     pairs_df.columns = ['metric1', 'metric2', 'corr']
@@ -287,7 +290,7 @@ def analytics():
     for _, row in pairs_df.iterrows():
         c1, c2, corr = row['metric1'], row['metric2'], row['corr']
         correlations.append((c1, c2, corr))
-        sub = pivot[[c1, c2]].dropna()
+        sub = pivot_current[[c1, c2]].dropna()
         if len(sub) >= min_pts:
             slope, _ = np.polyfit(sub[c1], sub[c2], 1)
             mean_x = sub[c1].mean()
@@ -333,6 +336,36 @@ def analytics():
     if request.args.get('json') == '1':
         return jsonify({'correlations': correlations, 'lag_correlations': lag_correlations, 'summaries': summaries})
     return render_template('analytics.html', message=message, summaries=summaries, accuracy=accuracy, period=period)
+
+
+@app.route('/correlation_data')
+def correlation_data():
+    """Return time series data for two metrics/habits."""
+    m1 = request.args.get('metric1')
+    m2 = request.args.get('metric2')
+    period = request.args.get('period', 'day')
+    freq_map = {'day': 'D', 'week': 'W', 'month': 'M'}
+    p_code = freq_map.get(period, 'D')
+
+    conn = sqlite3.connect(DB_PATH)
+    df = pd.read_sql_query(
+        'SELECT metric_date, metric_type, value FROM daily_metrics '
+        'WHERE metric_type IN (?, ?)',
+        conn,
+        params=(m1, m2),
+    )
+    conn.close()
+    if df.empty:
+        return jsonify({'labels': [], 'metric1': [], 'metric2': []})
+
+    df['metric_date'] = pd.to_datetime(df['metric_date'])
+    pivot = df.pivot(index='metric_date', columns='metric_type', values='value')
+    pivot = pivot.resample(p_code).mean()
+
+    labels = pivot.index.strftime('%Y-%m-%d').tolist()
+    series1 = pivot.get(m1, pd.Series()).fillna(None).tolist()
+    series2 = pivot.get(m2, pd.Series()).fillna(None).tolist()
+    return jsonify({'labels': labels, 'metric1': series1, 'metric2': series2})
 
 @app.route('/')
 def index():
