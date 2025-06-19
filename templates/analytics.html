@@ -11,13 +11,60 @@
   <a href="{{ url_for('analytics', accuracy=accuracy, period='week') }}" class="btn btn-sm btn-outline-secondary">Week</a>
   <a href="{{ url_for('analytics', accuracy=accuracy, period='month') }}" class="btn btn-sm btn-outline-secondary">Month</a>
 </div>
-<pre>{{ message }}</pre>
+<p>{{ message }}</p>
+{% if correlations %}
+  <ul id="correlation-list">
+  {% for c1, c2, corr in correlations %}
+    <li><a href="#" class="correlation-link" data-metric1="{{ c1 }}" data-metric2="{{ c2 }}">{{ c1 }} vs {{ c2 }}: {{ '%+.2f'|format(corr) }}</a></li>
+  {% endfor %}
+  </ul>
+{% endif %}
 {% if summaries %}
   <h3>Predictions</h3>
   <ul>
   {% for line in summaries %}
     <li>{{ line }}</li>
   {% endfor %}
-</ul>
+  </ul>
 {% endif %}
+<script>
+const chartEl = document.getElementById('correlationChart');
+let currentM1 = null;
+let currentM2 = null;
+let chart;
+
+function fetchAndShow() {
+  if (!currentM1 || !currentM2) return;
+  const period = document.getElementById('period-select').value;
+  fetch(`/correlation_data?metric1=${encodeURIComponent(currentM1)}&metric2=${encodeURIComponent(currentM2)}&period=${period}`)
+    .then(r => r.json())
+    .then(data => {
+      if (chart) chart.destroy();
+      chartEl.style.display = 'block';
+      chart = new Chart(chartEl, {
+        type: 'line',
+        data: {
+          labels: data.labels,
+          datasets: [
+            {label: currentM1, data: data.metric1, borderColor: 'blue', fill: false},
+            {label: currentM2, data: data.metric2, borderColor: 'orange', fill: false}
+          ]
+        }
+      });
+      const modal = new bootstrap.Modal(document.getElementById('chartModal'));
+      modal.show();
+    });
+}
+
+document.querySelectorAll('.correlation-link').forEach(el => {
+  el.addEventListener('click', e => {
+    e.preventDefault();
+    currentM1 = el.dataset.metric1;
+    currentM2 = el.dataset.metric2;
+    fetchAndShow();
+  });
+});
+
+document.getElementById('period-select').addEventListener('change', fetchAndShow);
+</script>
 {% endblock %}
