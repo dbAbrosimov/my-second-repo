@@ -1,6 +1,11 @@
 {% extends 'base.html' %}
 {% block content %}
 <h2>Analytics</h2>
+<div class="mb-3">
+  <a href="{{ url_for('analytics', accuracy='high') }}" class="btn btn-sm btn-outline-primary">High</a>
+  <a href="{{ url_for('analytics', accuracy='medium') }}" class="btn btn-sm btn-outline-primary">Medium</a>
+  <a href="{{ url_for('analytics', accuracy='low') }}" class="btn btn-sm btn-outline-primary">Low</a>
+</div>
 <pre>{{ message }}</pre>
 {% if summaries %}
   <h3>Predictions</h3>
@@ -8,11 +13,6 @@
   {% for line in summaries %}
     <li>{{ line }}</li>
   {% endfor %}
-  </ul>
+</ul>
 {% endif %}
-<div class="mt-3">
-  <a href="{{ url_for('analytics', accuracy='high') }}" class="btn btn-sm btn-outline-primary">High</a>
-  <a href="{{ url_for('analytics', accuracy='medium') }}" class="btn btn-sm btn-outline-primary">Medium</a>
-  <a href="{{ url_for('analytics', accuracy='low') }}" class="btn btn-sm btn-outline-primary">Low</a>
-</div>
 {% endblock %}
