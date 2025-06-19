@@ -51,28 +51,26 @@ def prettify_type(raw):
     return name
 
 def init_db():
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS habits (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name TEXT,
-                    input_type TEXT
-                )''')
-    c.execute('''CREATE TABLE IF NOT EXISTS daily_metrics (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    metric_type TEXT,
-                    metric_date TEXT,
-                    value REAL
-                )''')
-    c.execute('''CREATE TABLE IF NOT EXISTS habit_entries (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    habit_id INTEGER,
-                    entry_date TEXT,
-                    value TEXT,
-                    FOREIGN KEY(habit_id) REFERENCES habits(id)
-                )''')
-    conn.commit()
-    conn.close()
+    with sqlite3.connect(DB_PATH) as conn:
+        c = conn.cursor()
+        c.execute('''CREATE TABLE IF NOT EXISTS habits (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        name TEXT,
+                        input_type TEXT
+                    )''')
+        c.execute('''CREATE TABLE IF NOT EXISTS daily_metrics (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        metric_type TEXT,
+                        metric_date TEXT,
+                        value REAL
+                    )''')
+        c.execute('''CREATE TABLE IF NOT EXISTS habit_entries (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        habit_id INTEGER,
+                        entry_date TEXT,
+                        value TEXT,
+                        FOREIGN KEY(habit_id) REFERENCES habits(id)
+                    )''')
 
 init_db()
 
@@ -83,12 +81,10 @@ def create_habit():
         return jsonify({'error': 'No data provided'}), 400
     name = data.get('name')
     input_type = data.get('input_type')
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute('INSERT INTO habits (name, input_type) VALUES (?, ?)', (name, input_type))
-    conn.commit()
-    habit_id = c.lastrowid
-    conn.close()
+    with sqlite3.connect(DB_PATH) as conn:
+        c = conn.cursor()
+        c.execute('INSERT INTO habits (name, input_type) VALUES (?, ?)', (name, input_type))
+        habit_id = c.lastrowid
     if request.form:
         return redirect(url_for('index'))
     return jsonify({'id': habit_id, 'name': name, 'input_type': input_type})
@@ -104,15 +100,13 @@ def add_entry():
     entry_date = data.get('entry_date')
     value = data.get('value')
 
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute(
-        'INSERT INTO habit_entries (habit_id, entry_date, value) '
-        'VALUES (?, ?, ?)',
-        (habit_id, entry_date, value)
-    )
-    conn.commit()
-    conn.close()
+    with sqlite3.connect(DB_PATH) as conn:
+        c = conn.cursor()
+        c.execute(
+            'INSERT INTO habit_entries (habit_id, entry_date, value) '
+            'VALUES (?, ?, ?)',
+            (habit_id, entry_date, value)
+        )
 
     if request.form:
         return redirect(url_for('index'))
@@ -148,20 +142,18 @@ def parse_xml(path):
             daily[mtype][start].append(num)
             elem.clear()
 
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    metrics_found = set()
-    for mtype, days in daily.items():
-        for date, values in days.items():
-            if mtype == 'Step Count':
-                val = sum(values)
-            else:
-                val = statistics.mean(values)
-            c.execute('INSERT INTO daily_metrics (metric_type, metric_date, value) VALUES (?, ?, ?)',
-                      (mtype, date, val))
-            metrics_found.add(mtype)
-    conn.commit()
-    conn.close()
+    with sqlite3.connect(DB_PATH) as conn:
+        c = conn.cursor()
+        metrics_found = set()
+        for mtype, days in daily.items():
+            for date, values in days.items():
+                if mtype == 'Step Count':
+                    val = sum(values)
+                else:
+                    val = statistics.mean(values)
+                c.execute('INSERT INTO daily_metrics (metric_type, metric_date, value) VALUES (?, ?, ?)',
+                          (mtype, date, val))
+                metrics_found.add(mtype)
     return {m: None for m in metrics_found}
 
 @app.route('/analytics', methods=['GET'])
@@ -174,14 +166,13 @@ def analytics():
     min_pts = min_points.get(accuracy, 15)
     show_trivial = request.args.get('show_trivial') == '1'
 
-    conn = sqlite3.connect(DB_PATH)
-    df = pd.read_sql_query('SELECT metric_date, metric_type, value FROM daily_metrics', conn)
-    habits_df = pd.read_sql_query(
-        'SELECT habit_entries.entry_date, habits.name, habits.input_type, habit_entries.value '
-        'FROM habit_entries JOIN habits ON habit_entries.habit_id = habits.id',
-        conn
-    )
-    conn.close()
+    with sqlite3.connect(DB_PATH) as conn:
+        df = pd.read_sql_query('SELECT metric_date, metric_type, value FROM daily_metrics', conn)
+        habits_df = pd.read_sql_query(
+            'SELECT habit_entries.entry_date, habits.name, habits.input_type, habit_entries.value '
+            'FROM habit_entries JOIN habits ON habit_entries.habit_id = habits.id',
+            conn
+        )
 
     if df.empty:
         return render_template('analytics.html', message='No metrics uploaded yet')
@@ -252,11 +243,10 @@ def analytics():
 @app.route('/')
 def index():
     """Render a simple page with forms for common actions."""
-    conn = sqlite3.connect(DB_PATH)
-    habits = conn.execute('SELECT id, name, input_type FROM habits').fetchall()
-    conn.close()
-    today = datetime.date.today().strftime('%Y-%m-%d')
-    return render_template('index.html', habits=habits, today=today)
+    with sqlite3.connect(DB_PATH) as conn:
+        habits = conn.execute('SELECT id, name, input_type FROM habits').fetchall()
+        today = datetime.date.today().strftime('%Y-%m-%d')
+        return render_template('index.html', habits=habits, today=today)
 
 if __name__ == '__main__':
     app.run(debug=True)
@@ -308,28 +298,26 @@ def prettify_type(raw):
     return name
 
 def init_db():
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS habits (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name TEXT,
-                    input_type TEXT
-                )''')
-    c.execute('''CREATE TABLE IF NOT EXISTS daily_metrics (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    metric_type TEXT,
-                    metric_date TEXT,
-                    value REAL
-                )''')
-    c.execute('''CREATE TABLE IF NOT EXISTS habit_entries (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    habit_id INTEGER,
-                    entry_date TEXT,
-                    value TEXT,
-                    FOREIGN KEY(habit_id) REFERENCES habits(id)
-                )''')
-    conn.commit()
-    conn.close()
+    with sqlite3.connect(DB_PATH) as conn:
+        c = conn.cursor()
+        c.execute('''CREATE TABLE IF NOT EXISTS habits (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        name TEXT,
+                        input_type TEXT
+                    )''')
+        c.execute('''CREATE TABLE IF NOT EXISTS daily_metrics (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        metric_type TEXT,
+                        metric_date TEXT,
+                        value REAL
+                    )''')
+        c.execute('''CREATE TABLE IF NOT EXISTS habit_entries (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        habit_id INTEGER,
+                        entry_date TEXT,
+                        value TEXT,
+                        FOREIGN KEY(habit_id) REFERENCES habits(id)
+                    )''')
 
 init_db()
 
@@ -340,12 +328,10 @@ def create_habit():
         return jsonify({'error': 'No data provided'}), 400
     name = data.get('name')
     input_type = data.get('input_type')
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute('INSERT INTO habits (name, input_type) VALUES (?, ?)', (name, input_type))
-    conn.commit()
-    habit_id = c.lastrowid
-    conn.close()
+    with sqlite3.connect(DB_PATH) as conn:
+        c = conn.cursor()
+        c.execute('INSERT INTO habits (name, input_type) VALUES (?, ?)', (name, input_type))
+        habit_id = c.lastrowid
     if request.form:
         return redirect(url_for('index'))
     return jsonify({'id': habit_id, 'name': name, 'input_type': input_type})
@@ -361,15 +347,13 @@ def add_entry():
     entry_date = data.get('entry_date')
     value = data.get('value')
 
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute(
-        'INSERT INTO habit_entries (habit_id, entry_date, value) '
-        'VALUES (?, ?, ?)',
-        (habit_id, entry_date, value)
-    )
-    conn.commit()
-    conn.close()
+    with sqlite3.connect(DB_PATH) as conn:
+        c = conn.cursor()
+        c.execute(
+            'INSERT INTO habit_entries (habit_id, entry_date, value) '
+            'VALUES (?, ?, ?)',
+            (habit_id, entry_date, value)
+        )
 
     if request.form:
         return redirect(url_for('index'))
@@ -405,20 +389,18 @@ def parse_xml(path):
             daily[mtype][start].append(num)
             elem.clear()
 
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    metrics_found = set()
-    for mtype, days in daily.items():
-        for date, values in days.items():
-            if mtype == 'Step Count':
-                val = sum(values)
-            else:
-                val = statistics.mean(values)
-            c.execute('INSERT INTO daily_metrics (metric_type, metric_date, value) VALUES (?, ?, ?)',
-                      (mtype, date, val))
-            metrics_found.add(mtype)
-    conn.commit()
-    conn.close()
+    with sqlite3.connect(DB_PATH) as conn:
+        c = conn.cursor()
+        metrics_found = set()
+        for mtype, days in daily.items():
+            for date, values in days.items():
+                if mtype == 'Step Count':
+                    val = sum(values)
+                else:
+                    val = statistics.mean(values)
+                c.execute('INSERT INTO daily_metrics (metric_type, metric_date, value) VALUES (?, ?, ?)',
+                          (mtype, date, val))
+                metrics_found.add(mtype)
     return {m: None for m in metrics_found}
 
 @app.route('/analytics', methods=['GET'])
@@ -431,14 +413,13 @@ def analytics():
     min_pts = min_points.get(accuracy, 15)
     show_trivial = request.args.get('show_trivial') == '1'
 
-    conn = sqlite3.connect(DB_PATH)
-    df = pd.read_sql_query('SELECT metric_date, metric_type, value FROM daily_metrics', conn)
-    habits_df = pd.read_sql_query(
-        'SELECT habit_entries.entry_date, habits.name, habits.input_type, habit_entries.value '
-        'FROM habit_entries JOIN habits ON habit_entries.habit_id = habits.id',
-        conn
-    )
-    conn.close()
+    with sqlite3.connect(DB_PATH) as conn:
+        df = pd.read_sql_query('SELECT metric_date, metric_type, value FROM daily_metrics', conn)
+        habits_df = pd.read_sql_query(
+            'SELECT habit_entries.entry_date, habits.name, habits.input_type, habit_entries.value '
+            'FROM habit_entries JOIN habits ON habit_entries.habit_id = habits.id',
+            conn
+        )
 
     if df.empty:
         return render_template('analytics.html', message='No metrics uploaded yet')
@@ -499,10 +480,9 @@ def analytics():
 @app.route('/')
 def index():
     """Render a simple page with forms for common actions."""
-    conn = sqlite3.connect(DB_PATH)
-    habits = conn.execute('SELECT id, name, input_type FROM habits').fetchall()
-    conn.close()
-    return render_template('index.html', habits=habits)
+    with sqlite3.connect(DB_PATH) as conn:
+        habits = conn.execute('SELECT id, name, input_type FROM habits').fetchall()
+        return render_template('index.html', habits=habits)
 
 if __name__ == '__main__':
     app.run(debug=True)
@@ -522,28 +502,26 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 DB_PATH = 'app.db'
 
 def init_db():
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS habits (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name TEXT,
-                    input_type TEXT
-                )''')
-    c.execute('''CREATE TABLE IF NOT EXISTS daily_metrics (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    metric_type TEXT,
-                    metric_date TEXT,
-                    value REAL
-                )''')
-    c.execute('''CREATE TABLE IF NOT EXISTS habit_entries (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    habit_id INTEGER,
-                    entry_date TEXT,
-                    value TEXT,
-                    FOREIGN KEY(habit_id) REFERENCES habits(id)
-                )''')
-    conn.commit()
-    conn.close()
+    with sqlite3.connect(DB_PATH) as conn:
+        c = conn.cursor()
+        c.execute('''CREATE TABLE IF NOT EXISTS habits (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        name TEXT,
+                        input_type TEXT
+                    )''')
+        c.execute('''CREATE TABLE IF NOT EXISTS daily_metrics (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        metric_type TEXT,
+                        metric_date TEXT,
+                        value REAL
+                    )''')
+        c.execute('''CREATE TABLE IF NOT EXISTS habit_entries (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        habit_id INTEGER,
+                        entry_date TEXT,
+                        value TEXT,
+                        FOREIGN KEY(habit_id) REFERENCES habits(id)
+                    )''')
 
 init_db()
 
@@ -554,12 +532,10 @@ def create_habit():
         return jsonify({'error': 'No data provided'}), 400
     name = data.get('name')
     input_type = data.get('input_type')
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute('INSERT INTO habits (name, input_type) VALUES (?, ?)', (name, input_type))
-    conn.commit()
-    habit_id = c.lastrowid
-    conn.close()
+    with sqlite3.connect(DB_PATH) as conn:
+        c = conn.cursor()
+        c.execute('INSERT INTO habits (name, input_type) VALUES (?, ?)', (name, input_type))
+        habit_id = c.lastrowid
     if request.form:
         return redirect(url_for('index'))
     return jsonify({'id': habit_id, 'name': name, 'input_type': input_type})
@@ -575,15 +551,13 @@ def add_entry():
     entry_date = data.get('entry_date')
     value = data.get('value')
 
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute(
-        'INSERT INTO habit_entries (habit_id, entry_date, value) '
-        'VALUES (?, ?, ?)',
-        (habit_id, entry_date, value)
-    )
-    conn.commit()
-    conn.close()
+    with sqlite3.connect(DB_PATH) as conn:
+        c = conn.cursor()
+        c.execute(
+            'INSERT INTO habit_entries (habit_id, entry_date, value) '
+            'VALUES (?, ?, ?)',
+            (habit_id, entry_date, value)
+        )
 
     if request.form:
         return redirect(url_for('index'))
@@ -619,20 +593,18 @@ def parse_xml(path):
             daily[mtype][start].append(num)
             elem.clear()
 
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    metrics_found = set()
-    for mtype, days in daily.items():
-        for date, values in days.items():
-            if mtype == 'HKQuantityTypeIdentifierStepCount':
-                val = sum(values)
-            else:
-                val = statistics.mean(values)
-            c.execute('INSERT INTO daily_metrics (metric_type, metric_date, value) VALUES (?, ?, ?)',
-                      (mtype, date, val))
-            metrics_found.add(mtype)
-    conn.commit()
-    conn.close()
+    with sqlite3.connect(DB_PATH) as conn:
+        c = conn.cursor()
+        metrics_found = set()
+        for mtype, days in daily.items():
+            for date, values in days.items():
+                if mtype == 'HKQuantityTypeIdentifierStepCount':
+                    val = sum(values)
+                else:
+                    val = statistics.mean(values)
+                c.execute('INSERT INTO daily_metrics (metric_type, metric_date, value) VALUES (?, ?, ?)',
+                          (mtype, date, val))
+                metrics_found.add(mtype)
     return {m: None for m in metrics_found}
 
 @app.route('/analytics', methods=['GET'])
@@ -644,14 +616,13 @@ def analytics():
     thresh = thresholds.get(accuracy, 0.4)
     min_pts = min_points.get(accuracy, 15)
 
-    conn = sqlite3.connect(DB_PATH)
-    df = pd.read_sql_query('SELECT metric_date, metric_type, value FROM daily_metrics', conn)
-    habits_df = pd.read_sql_query(
-        'SELECT habit_entries.entry_date, habits.name, habits.input_type, habit_entries.value '
-        'FROM habit_entries JOIN habits ON habit_entries.habit_id = habits.id',
-        conn
-    )
-    conn.close()
+    with sqlite3.connect(DB_PATH) as conn:
+        df = pd.read_sql_query('SELECT metric_date, metric_type, value FROM daily_metrics', conn)
+        habits_df = pd.read_sql_query(
+            'SELECT habit_entries.entry_date, habits.name, habits.input_type, habit_entries.value '
+            'FROM habit_entries JOIN habits ON habit_entries.habit_id = habits.id',
+            conn
+        )
 
     if df.empty:
         return render_template('analytics.html', message='No metrics uploaded yet')
