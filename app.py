@@ -15,6 +15,14 @@ app.config['UPLOAD_FOLDER'] = 'uploads'
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 DB_PATH = 'app.db'
 
+# Configurable start of day as HH:MM (default 03:00)
+DAY_START_HOUR = os.environ.get('DAY_START_HOUR', '03:00')
+try:
+    _h, _m = map(int, DAY_START_HOUR.split(':'))
+    DAY_START_TIME = datetime.time(_h, _m)
+except Exception:
+    DAY_START_TIME = datetime.time(3, 0)
+
 TRIVIAL_PAIRS = {frozenset({'Body Fat Percentage', 'Body Mass'})}
 
 def prettify_type(raw):
@@ -135,17 +143,26 @@ def parse_xml(path):
             value = elem.attrib.get('value')
             start_date = elem.attrib.get('startDate')
             end_date = elem.attrib.get('endDate')
-            day_key = start_date[:10] if start_date else None
-
             mtype = prettify_type(raw_type)
+
+            day_key = None
+            s_dt = e_dt = None
+            if start_date:
+                try:
+                    s_dt = datetime.datetime.fromisoformat(start_date)
+                    e_dt = datetime.datetime.fromisoformat(end_date) if end_date else None
+                    day_key = s_dt.date().isoformat()
+                    cutoff = datetime.datetime.combine(s_dt.date(), DAY_START_TIME)
+                    if e_dt and s_dt.time() < DAY_START_TIME and e_dt > cutoff:
+                        day_key = (s_dt.date() + datetime.timedelta(days=1)).isoformat()
+                except Exception:
+                    day_key = start_date[:10]
 
             try:
                 num = float(value)
             except (TypeError, ValueError):
-                if raw_type and raw_type.endswith('SleepAnalysis') and start_date and end_date:
+                if raw_type and raw_type.endswith('SleepAnalysis') and s_dt and e_dt:
                     try:
-                        s_dt = datetime.datetime.fromisoformat(start_date)
-                        e_dt = datetime.datetime.fromisoformat(end_date)
                         num = (e_dt - s_dt).total_seconds() / 60
                         stage = prettify_type(value)
                         stage = stage.replace('Category Value Sleep Analysis ', '')
