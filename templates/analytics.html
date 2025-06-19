@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h2 class="mb-4">Analytics</h2>
+
+{% if message %}
+<pre class="p-3 bg-light border rounded">{{ message }}</pre>
+{% endif %}
+
+{% if summaries %}
+<div class="mt-4">
+  <h4>Summaries</h4>
+  <ul class="list-group">
+  {% for s in summaries %}
+    <li class="list-group-item">{{ s }}</li>
+  {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+{% endblock %}
