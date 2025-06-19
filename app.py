@@ -208,12 +208,9 @@ def analytics():
 
     conn = sqlite3.connect(DB_PATH)
     df = pd.read_sql_query(
-        'SELECT metric_date, metric_type, value FROM daily_metrics', conn
+        'SELECT metric_date, metric_type as metric, value FROM daily_metrics',
+        conn,
     )
-    # Rename the ``metric_type`` column before pivoting so that index names
-    # created by ``pivot_table`` never collide with an existing column when
-    # ``reset_index()`` is used internally by pandas.
-    df = df.rename(columns={'metric_type': 'metric'})
     habits_df = pd.read_sql_query(
         'SELECT habit_entries.entry_date, habits.name, habits.input_type, habit_entries.value '
         'FROM habit_entries JOIN habits ON habit_entries.habit_id = habits.id',
@@ -229,14 +226,11 @@ def analytics():
     if df.empty:
         return render_template('analytics.html', message='No metrics uploaded yet')
 
-    pivot = df.pivot_table(
-        values='value', index='metric_date', columns='metric', aggfunc='first'
-    )
-    # ``pivot_table`` may assign the ``index`` name "metric_date" which can
-    # clash with an existing column when ``reset_index()`` is called later.
-    # Clearing the index name avoids pandas errors about inserting duplicate
-    # ``metric`` columns when duplicate labels are not allowed.
+    pivot = df.pivot(index='metric_date', columns='metric', values='value')
+    # ``pivot`` leaves column names set to the pivot key; removing them avoids
+    # clashes if ``reset_index()`` is triggered internally by pandas later.
     pivot.index.name = None
+    pivot.columns.name = None
     pivot.flags.allows_duplicate_labels = True
 
     if not habits_df.empty:
@@ -267,17 +261,34 @@ def analytics():
             values='num_val', index='entry_date', columns='name', aggfunc='first'
         )
         habit_pivot.index.name = None
+        habit_pivot.columns.name = None
         habit_pivot.flags.allows_duplicate_labels = True
         pivot = pivot.join(habit_pivot, how='left')
         pivot.flags.allows_duplicate_labels = True
+
+    # Compute all pairwise correlations in a DataFrame so we can iterate over
+    # the significant ones later. ``corr()`` automatically ignores non-numeric
+    # columns. Using ``np.triu`` ensures we keep each unordered pair only once.
+    corr_matrix = pivot.corr(min_periods=min_pts)
+    mask = np.triu(np.ones_like(corr_matrix, dtype=bool), k=1)
+    pairs_df = corr_matrix.where(mask).stack().reset_index()
+    pairs_df.columns = ['metric1', 'metric2', 'corr']
+
+    # Drop trivial or weak correlations
+    if not show_trivial:
+        pairs_df = pairs_df[~pairs_df.apply(
+            lambda r: frozenset({r['metric1'], r['metric2']}) in TRIVIAL_PAIRS,
+            axis=1,
+        )]
+    pairs_df = pairs_df[(pairs_df['corr'].abs() >= thresh) & (pairs_df['corr'].abs() < 0.99)]
 
     correlations = []
     summaries = []
     for _, row in pairs_df.iterrows():
         c1, c2, corr = row['metric1'], row['metric2'], row['corr']
         correlations.append((c1, c2, corr))
-        sub = pivot_current[[c1, c2]].dropna()
-        if len(sub) >= 2:
+        sub = pivot[[c1, c2]].dropna()
+        if len(sub) >= min_pts:
             slope, _ = np.polyfit(sub[c1], sub[c2], 1)
             mean_x = sub[c1].mean()
             mean_y = sub[c2].mean()
