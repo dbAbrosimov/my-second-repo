@@ -175,7 +175,13 @@ def analytics():
     show_trivial = request.args.get('show_trivial') == '1'
 
     conn = sqlite3.connect(DB_PATH)
-    df = pd.read_sql_query('SELECT metric_date, metric_type, value FROM daily_metrics', conn)
+    df = pd.read_sql_query(
+        'SELECT metric_date, metric_type, value FROM daily_metrics', conn
+    )
+    # Rename the ``metric_type`` column before pivoting so that index names
+    # created by ``pivot_table`` never collide with an existing column when
+    # ``reset_index()`` is used internally by pandas.
+    df = df.rename(columns={'metric_type': 'metric'})
     habits_df = pd.read_sql_query(
         'SELECT habit_entries.entry_date, habits.name, habits.input_type, habit_entries.value '
         'FROM habit_entries JOIN habits ON habit_entries.habit_id = habits.id',
@@ -192,12 +198,12 @@ def analytics():
         return render_template('analytics.html', message='No metrics uploaded yet')
 
     pivot = df.pivot_table(
-        values='value', index='metric_date', columns='metric_type', aggfunc='first'
+        values='value', index='metric_date', columns='metric', aggfunc='first'
     )
     # ``pivot_table`` may assign the ``index`` name "metric_date" which can
     # clash with an existing column when ``reset_index()`` is called later.
-    # Clearing the index name avoids ``ValueError: cannot insert metric_type``
-    # errors in pandas when duplicate column labels are not allowed.
+    # Clearing the index name avoids pandas errors about inserting duplicate
+    # ``metric`` columns when duplicate labels are not allowed.
     pivot.index.name = None
     pivot.flags.allows_duplicate_labels = True
 
