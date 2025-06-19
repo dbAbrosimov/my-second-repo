@@ -131,15 +131,34 @@ def parse_xml(path):
     daily = defaultdict(lambda: defaultdict(list))
     for event, elem in ET.iterparse(path, events=('end',)):
         if elem.tag == 'Record':
-            mtype = prettify_type(elem.attrib.get('type'))
+            raw_type = elem.attrib.get('type')
             value = elem.attrib.get('value')
-            start = elem.attrib.get('startDate', '')[:10]
+            start_date = elem.attrib.get('startDate')
+            end_date = elem.attrib.get('endDate')
+            day_key = start_date[:10] if start_date else None
+
+            mtype = prettify_type(raw_type)
+
             try:
                 num = float(value)
             except (TypeError, ValueError):
-                elem.clear()
-                continue
-            daily[mtype][start].append(num)
+                if raw_type and raw_type.endswith('SleepAnalysis') and start_date and end_date:
+                    try:
+                        s_dt = datetime.datetime.fromisoformat(start_date)
+                        e_dt = datetime.datetime.fromisoformat(end_date)
+                        num = (e_dt - s_dt).total_seconds() / 60
+                        stage = prettify_type(value)
+                        stage = stage.replace('Category Value Sleep Analysis ', '')
+                        mtype = stage
+                    except Exception:
+                        elem.clear()
+                        continue
+                else:
+                    elem.clear()
+                    continue
+
+            if day_key:
+                daily[mtype][day_key].append(num)
             elem.clear()
 
     with sqlite3.connect(DB_PATH) as conn:
@@ -147,7 +166,7 @@ def parse_xml(path):
         metrics_found = set()
         for mtype, days in daily.items():
             for date, values in days.items():
-                if mtype == 'Step Count':
+                if mtype == 'Step Count' or 'Asleep' in mtype or 'Awake' in mtype or 'Bed' in mtype:
                     val = sum(values)
                 else:
                     val = statistics.mean(values)
