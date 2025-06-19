@@ -206,22 +206,38 @@ def analytics():
     min_pts = min_points.get(accuracy, 15)
     show_trivial = request.args.get('show_trivial') == '1'
 
-    with sqlite3.connect(DB_PATH) as conn:
-        df = pd.read_sql_query('SELECT metric_date, metric_type, value FROM daily_metrics', conn)
-        habits_df = pd.read_sql_query(
-            'SELECT habit_entries.entry_date, habits.name, habits.input_type, habit_entries.value '
-            'FROM habit_entries JOIN habits ON habit_entries.habit_id = habits.id',
-            conn
-        )
+    conn = sqlite3.connect(DB_PATH)
+    df = pd.read_sql_query(
+        'SELECT metric_date, metric_type, value FROM daily_metrics', conn
+    )
+    # Rename the ``metric_type`` column before pivoting so that index names
+    # created by ``pivot_table`` never collide with an existing column when
+    # ``reset_index()`` is used internally by pandas.
+    df = df.rename(columns={'metric_type': 'metric'})
+    habits_df = pd.read_sql_query(
+        'SELECT habit_entries.entry_date, habits.name, habits.input_type, habit_entries.value '
+        'FROM habit_entries JOIN habits ON habit_entries.habit_id = habits.id',
+        conn
+    )
+    # Explicitly allow duplicate labels in case global pandas options
+    # were set to disallow them. Pivoting with duplicate restrictions
+    # can otherwise raise a ``ValueError`` when inserting index labels.
+    df.flags.allows_duplicate_labels = True
+    habits_df.flags.allows_duplicate_labels = True
+    conn.close()
 
     if df.empty:
         return render_template('analytics.html', message='No metrics uploaded yet')
 
-    df['metric_date'] = df['metric_date'].astype('datetime64[ns]')
-    period_map = {'day': 'D', 'week': 'W', 'month': 'M'}
-    p_code = period_map.get(period, 'D')
-    df['period'] = df['metric_date'].dt.to_period(p_code)
-    pivot_current = df.pivot_table(values='value', index='period', columns='metric_type', aggfunc='mean')
+    pivot = df.pivot_table(
+        values='value', index='metric_date', columns='metric', aggfunc='first'
+    )
+    # ``pivot_table`` may assign the ``index`` name "metric_date" which can
+    # clash with an existing column when ``reset_index()`` is called later.
+    # Clearing the index name avoids pandas errors about inserting duplicate
+    # ``metric`` columns when duplicate labels are not allowed.
+    pivot.index.name = None
+    pivot.flags.allows_duplicate_labels = True
 
     if not habits_df.empty:
         def conv(row):
@@ -247,26 +263,13 @@ def analytics():
         habits_df['entry_date'] = habits_df['entry_date'].astype('datetime64[ns]')
         habits_df['period'] = habits_df['entry_date'].dt.to_period(p_code)
         habits_df['num_val'] = habits_df.apply(conv, axis=1)
-        habit_pivot = habits_df.pivot_table(values='num_val', index='period', columns='name', aggfunc='first')
-        pivot_current = pivot_current.join(habit_pivot, how='left')
-
-    corr_matrix = pivot_current.corr(min_periods=min_pts)
-    pairs_df = (
-        corr_matrix
-        .where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
-        .stack()
-        .rename_axis(index=("metric1", "metric2"))
-        .reset_index(name="corr")
-    )
-
-    if not show_trivial:
-        mask = pairs_df.apply(
-            lambda r: frozenset({r['metric1'], r['metric2']}) in TRIVIAL_PAIRS,
-            axis=1,
+        habit_pivot = habits_df.pivot_table(
+            values='num_val', index='entry_date', columns='name', aggfunc='first'
         )
-        pairs_df = pairs_df[~mask]
-
-    pairs_df = pairs_df[(pairs_df['corr'].abs() >= thresh) & (pairs_df['corr'].abs() < 0.99)]
+        habit_pivot.index.name = None
+        habit_pivot.flags.allows_duplicate_labels = True
+        pivot = pivot.join(habit_pivot, how='left')
+        pivot.flags.allows_duplicate_labels = True
 
     correlations = []
     summaries = []
