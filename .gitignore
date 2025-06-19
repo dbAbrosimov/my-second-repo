@@ -5,4 +5,7 @@ uploads/
 uploads/xml
 .DS_Store
 __pycache__/
-app.db
+
+# Ignore patch and backup files
+README.md.orig
+*.patch
