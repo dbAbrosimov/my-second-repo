@@ -259,14 +259,71 @@ def analytics():
                     f"{c2.lower()} may change from {mean_y:.0f} to {predicted:.0f}."
                 )
 
-    lines = [f"Accuracy: {accuracy}", f"Found {len(correlations)} significant correlations"]
-    for c1, c2, corr in correlations:
-        lines.append(f"{c1} vs {c2}: {corr:+.2f}")
-
-    message = '\n'.join(lines)
+    message = f"Accuracy: {accuracy}. Found {len(correlations)} significant correlations"
     if request.args.get('json') == '1':
         return jsonify({'correlations': correlations, 'summaries': summaries})
-    return render_template('analytics.html', message=message, summaries=summaries, accuracy=accuracy)
+    return render_template('analytics.html', message=message, summaries=summaries,
+                           correlations=correlations, accuracy=accuracy)
+
+
+@app.route('/correlation_data', methods=['GET'])
+def correlation_data_endpoint():
+    """Return time series data for two metrics aggregated by period."""
+    metric1 = request.args.get('metric1')
+    metric2 = request.args.get('metric2')
+    period = request.args.get('period', 'day').lower()
+
+    with sqlite3.connect(DB_PATH) as conn:
+        df = pd.read_sql_query('SELECT metric_date, metric_type, value FROM daily_metrics', conn)
+        habits_df = pd.read_sql_query(
+            'SELECT habit_entries.entry_date, habits.name, habits.input_type, habit_entries.value '
+            'FROM habit_entries JOIN habits ON habit_entries.habit_id = habits.id',
+            conn,
+        )
+
+    if df.empty and habits_df.empty:
+        return jsonify({'labels': [], 'metric1': [], 'metric2': []})
+
+    df['metric_date'] = pd.to_datetime(df['metric_date'])
+    pivot = df.pivot_table(values='value', index='metric_date', columns='metric_type', aggfunc='first')
+
+    if not habits_df.empty:
+        def conv(row):
+            t = row['input_type']
+            val = row['value']
+            if t == 'boolean':
+                return 1 if str(val).lower() in ('1', 'yes', 'true', 'да') else 0
+            if t == 'scale3':
+                mapping = {'low': 1, 'medium': 2, 'high': 3}
+                return mapping.get(str(val).lower())
+            if t == 'scale5':
+                try:
+                    n = int(val)
+                    if 1 <= n <= 5:
+                        return float(n)
+                except ValueError:
+                    return None
+            try:
+                return float(val)
+            except ValueError:
+                return None
+
+        habits_df['num_val'] = habits_df.apply(conv, axis=1)
+        habit_pivot = habits_df.pivot_table(values='num_val', index='entry_date', columns='name', aggfunc='first')
+        habit_pivot.index = pd.to_datetime(habit_pivot.index)
+        pivot = pivot.join(habit_pivot, how='left')
+
+    if period == 'week':
+        pivot = pivot.resample('W').mean()
+    elif period == 'month':
+        pivot = pivot.resample('M').mean()
+
+    if metric1 not in pivot.columns or metric2 not in pivot.columns:
+        return jsonify({'labels': [], 'metric1': [], 'metric2': []})
+
+    sub = pivot[[metric1, metric2]].dropna()
+    labels = sub.index.strftime('%Y-%m-%d').tolist()
+    return jsonify({'labels': labels, 'metric1': sub[metric1].tolist(), 'metric2': sub[metric2].tolist()})
 
 @app.route('/')
 def index():
