@@ -151,10 +151,13 @@ def parse_xml(path):
                 try:
                     s_dt = datetime.datetime.fromisoformat(start_date)
                     e_dt = datetime.datetime.fromisoformat(end_date) if end_date else None
-                    day_key = s_dt.date().isoformat()
                     cutoff = datetime.datetime.combine(s_dt.date(), DAY_START_TIME)
-                    if e_dt and s_dt.time() < DAY_START_TIME and e_dt > cutoff:
-                        day_key = (s_dt.date() + datetime.timedelta(days=1)).isoformat()
+                    if s_dt.time() >= DAY_START_TIME:
+                        cutoff += datetime.timedelta(days=1)
+                    if e_dt and e_dt > cutoff:
+                        day_key = cutoff.date().isoformat()
+                    else:
+                        day_key = s_dt.date().isoformat()
                 except Exception:
                     day_key = start_date[:10]
 
