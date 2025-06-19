@@ -96,12 +96,11 @@ locally in the project directory.
 
 ## Creating a diff patch
 
-If you want to generate a Unix-style patch file with the latest staged changes,
-run:
+To generate a Unix-style patch file with the latest staged changes, run:
 
 ```bash
-./generate_patch.sh
+git diff --staged > update.patch
 ```
 
-This script saves the diff to `update.patch`. Commit this file along with your
+This command saves the diff to `update.patch`. Commit this file along with your
 changes if you wish to share the patch separately.
