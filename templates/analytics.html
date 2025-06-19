@@ -2,14 +2,14 @@
 {% block content %}
 <h2>Analytics</h2>
 <div class="mb-3">
-  <a href="{{ url_for('analytics', accuracy='high') }}" class="btn btn-sm btn-outline-primary">High</a>
-  <a href="{{ url_for('analytics', accuracy='medium') }}" class="btn btn-sm btn-outline-primary">Medium</a>
-  <a href="{{ url_for('analytics', accuracy='low') }}" class="btn btn-sm btn-outline-primary">Low</a>
-  <select id="period-select" class="form-select form-select-sm w-auto d-inline-block ms-2">
-    <option value="day">Day</option>
-    <option value="week">Week</option>
-    <option value="month">Month</option>
-  </select>
+  <a href="{{ url_for('analytics', accuracy='high', period=period) }}" class="btn btn-sm btn-outline-primary">High</a>
+  <a href="{{ url_for('analytics', accuracy='medium', period=period) }}" class="btn btn-sm btn-outline-primary">Medium</a>
+  <a href="{{ url_for('analytics', accuracy='low', period=period) }}" class="btn btn-sm btn-outline-primary">Low</a>
+</div>
+<div class="mb-3">
+  <a href="{{ url_for('analytics', accuracy=accuracy, period='day') }}" class="btn btn-sm btn-outline-secondary">Day</a>
+  <a href="{{ url_for('analytics', accuracy=accuracy, period='week') }}" class="btn btn-sm btn-outline-secondary">Week</a>
+  <a href="{{ url_for('analytics', accuracy=accuracy, period='month') }}" class="btn btn-sm btn-outline-secondary">Month</a>
 </div>
 <p>{{ message }}</p>
 {% if correlations %}

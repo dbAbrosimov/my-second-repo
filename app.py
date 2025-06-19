@@ -199,6 +199,7 @@ def parse_xml(path):
 def analytics():
     """Compute correlations between metrics and habits."""
     accuracy = request.args.get('accuracy', 'medium')
+    period = request.args.get('period', 'day')
     thresholds = {'high': 0.6, 'medium': 0.4, 'low': 0.2}
     min_points = {'high': 30, 'medium': 15, 'low': 5}
     thresh = thresholds.get(accuracy, 0.4)
@@ -216,7 +217,11 @@ def analytics():
     if df.empty:
         return render_template('analytics.html', message='No metrics uploaded yet')
 
-    pivot = df.pivot_table(values='value', index='metric_date', columns='metric_type', aggfunc='first')
+    df['metric_date'] = df['metric_date'].astype('datetime64[ns]')
+    period_map = {'day': 'D', 'week': 'W', 'month': 'M'}
+    p_code = period_map.get(period, 'D')
+    df['period'] = df['metric_date'].dt.to_period(p_code)
+    pivot_current = df.pivot_table(values='value', index='period', columns='metric_type', aggfunc='mean')
 
     if not habits_df.empty:
         def conv(row):
@@ -239,11 +244,13 @@ def analytics():
             except ValueError:
                 return None
 
+        habits_df['entry_date'] = habits_df['entry_date'].astype('datetime64[ns]')
+        habits_df['period'] = habits_df['entry_date'].dt.to_period(p_code)
         habits_df['num_val'] = habits_df.apply(conv, axis=1)
-        habit_pivot = habits_df.pivot_table(values='num_val', index='entry_date', columns='name', aggfunc='first')
-        pivot = pivot.join(habit_pivot, how='left')
+        habit_pivot = habits_df.pivot_table(values='num_val', index='period', columns='name', aggfunc='first')
+        pivot_current = pivot_current.join(habit_pivot, how='left')
 
-    corr_matrix = pivot.corr(min_periods=min_pts)
+    corr_matrix = pivot_current.corr(min_periods=min_pts)
     pairs_df = (
         corr_matrix
         .where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
@@ -266,7 +273,7 @@ def analytics():
     for _, row in pairs_df.iterrows():
         c1, c2, corr = row['metric1'], row['metric2'], row['corr']
         correlations.append((c1, c2, corr))
-        sub = pivot[[c1, c2]].dropna()
+        sub = pivot_current[[c1, c2]].dropna()
         if len(sub) >= 2:
             slope, _ = np.polyfit(sub[c1], sub[c2], 1)
             mean_x = sub[c1].mean()
@@ -279,71 +286,39 @@ def analytics():
                     f"{c2.lower()} may change from {mean_y:.0f} to {predicted:.0f}."
                 )
 
-    message = f"Accuracy: {accuracy}. Found {len(correlations)} significant correlations"
-    if request.args.get('json') == '1':
-        return jsonify({'correlations': correlations, 'summaries': summaries})
-    return render_template('analytics.html', message=message, summaries=summaries,
-                           correlations=correlations, accuracy=accuracy)
-
-
-@app.route('/correlation_data', methods=['GET'])
-def correlation_data_endpoint():
-    """Return time series data for two metrics aggregated by period."""
-    metric1 = request.args.get('metric1')
-    metric2 = request.args.get('metric2')
-    period = request.args.get('period', 'day').lower()
-
-    with sqlite3.connect(DB_PATH) as conn:
-        df = pd.read_sql_query('SELECT metric_date, metric_type, value FROM daily_metrics', conn)
-        habits_df = pd.read_sql_query(
-            'SELECT habit_entries.entry_date, habits.name, habits.input_type, habit_entries.value '
-            'FROM habit_entries JOIN habits ON habit_entries.habit_id = habits.id',
-            conn,
+    # Lag correlations
+    pivot_prev = pivot_current.shift(1)
+    lag_df = pd.concat([
+        pivot_prev.add_suffix(' (prev)'),
+        pivot_current.add_suffix(' (curr)')
+    ], axis=1)
+    lag_corr = lag_df.corr(min_periods=min_pts)
+    prev_cols = [c for c in lag_corr.columns if c.endswith(' (prev)')]
+    curr_cols = [c for c in lag_corr.columns if c.endswith(' (curr)')]
+    lag_pairs_df = lag_corr.loc[prev_cols, curr_cols].stack().reset_index()
+    lag_pairs_df.columns = ['metric_prev', 'metric_curr', 'corr']
+    if not show_trivial:
+        mask = lag_pairs_df.apply(
+            lambda r: frozenset({r['metric_prev'][:-7], r['metric_curr'][:-7]}) in TRIVIAL_PAIRS,
+            axis=1,
         )
+        lag_pairs_df = lag_pairs_df[~mask]
+    lag_pairs_df = lag_pairs_df[(lag_pairs_df['corr'].abs() >= thresh) & (lag_pairs_df['corr'].abs() < 0.99)]
+    lag_correlations = [(r['metric_prev'], r['metric_curr'], r['corr']) for _, r in lag_pairs_df.iterrows()]
 
-    if df.empty and habits_df.empty:
-        return jsonify({'labels': [], 'metric1': [], 'metric2': []})
+    lines = [f"Accuracy: {accuracy}", f"Period: {period}", f"Found {len(correlations)} significant correlations"]
+    for c1, c2, corr in correlations:
+        lines.append(f"{c1} vs {c2}: {corr:+.2f}")
 
-    df['metric_date'] = pd.to_datetime(df['metric_date'])
-    pivot = df.pivot_table(values='value', index='metric_date', columns='metric_type', aggfunc='first')
+    lines.append("")
+    lines.append(f"Lag correlations ({period}): {len(lag_correlations)} pairs")
+    for c1, c2, corr in lag_correlations:
+        lines.append(f"{c1} -> {c2}: {corr:+.2f}")
 
-    if not habits_df.empty:
-        def conv(row):
-            t = row['input_type']
-            val = row['value']
-            if t == 'boolean':
-                return 1 if str(val).lower() in ('1', 'yes', 'true', 'да') else 0
-            if t == 'scale3':
-                mapping = {'low': 1, 'medium': 2, 'high': 3}
-                return mapping.get(str(val).lower())
-            if t == 'scale5':
-                try:
-                    n = int(val)
-                    if 1 <= n <= 5:
-                        return float(n)
-                except ValueError:
-                    return None
-            try:
-                return float(val)
-            except ValueError:
-                return None
-
-        habits_df['num_val'] = habits_df.apply(conv, axis=1)
-        habit_pivot = habits_df.pivot_table(values='num_val', index='entry_date', columns='name', aggfunc='first')
-        habit_pivot.index = pd.to_datetime(habit_pivot.index)
-        pivot = pivot.join(habit_pivot, how='left')
-
-    if period == 'week':
-        pivot = pivot.resample('W').mean()
-    elif period == 'month':
-        pivot = pivot.resample('M').mean()
-
-    if metric1 not in pivot.columns or metric2 not in pivot.columns:
-        return jsonify({'labels': [], 'metric1': [], 'metric2': []})
-
-    sub = pivot[[metric1, metric2]].dropna()
-    labels = sub.index.strftime('%Y-%m-%d').tolist()
-    return jsonify({'labels': labels, 'metric1': sub[metric1].tolist(), 'metric2': sub[metric2].tolist()})
+    message = '\n'.join(lines)
+    if request.args.get('json') == '1':
+        return jsonify({'correlations': correlations, 'lag_correlations': lag_correlations, 'summaries': summaries})
+    return render_template('analytics.html', message=message, summaries=summaries, accuracy=accuracy, period=period)
 
 @app.route('/')
 def index():
