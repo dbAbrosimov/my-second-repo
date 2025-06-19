@@ -181,6 +181,11 @@ def analytics():
         'FROM habit_entries JOIN habits ON habit_entries.habit_id = habits.id',
         conn
     )
+    # Explicitly allow duplicate labels in case global pandas options
+    # were set to disallow them. Pivoting with duplicate restrictions
+    # can otherwise raise a ``ValueError`` when inserting index labels.
+    df.flags.allows_duplicate_labels = True
+    habits_df.flags.allows_duplicate_labels = True
     conn.close()
 
     if df.empty:
