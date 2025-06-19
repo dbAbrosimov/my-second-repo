@@ -179,6 +179,7 @@ def parse_xml(path):
 def analytics():
     """Compute correlations between metrics and habits."""
     accuracy = request.args.get('accuracy', 'medium')
+    period = request.args.get('period', 'day')
     thresholds = {'high': 0.6, 'medium': 0.4, 'low': 0.2}
     min_points = {'high': 30, 'medium': 15, 'low': 5}
     thresh = thresholds.get(accuracy, 0.4)
@@ -196,7 +197,11 @@ def analytics():
     if df.empty:
         return render_template('analytics.html', message='No metrics uploaded yet')
 
-    pivot = df.pivot_table(values='value', index='metric_date', columns='metric_type', aggfunc='first')
+    df['metric_date'] = df['metric_date'].astype('datetime64[ns]')
+    period_map = {'day': 'D', 'week': 'W', 'month': 'M'}
+    p_code = period_map.get(period, 'D')
+    df['period'] = df['metric_date'].dt.to_period(p_code)
+    pivot_current = df.pivot_table(values='value', index='period', columns='metric_type', aggfunc='mean')
 
     if not habits_df.empty:
         def conv(row):
@@ -219,11 +224,13 @@ def analytics():
             except ValueError:
                 return None
 
+        habits_df['entry_date'] = habits_df['entry_date'].astype('datetime64[ns]')
+        habits_df['period'] = habits_df['entry_date'].dt.to_period(p_code)
         habits_df['num_val'] = habits_df.apply(conv, axis=1)
-        habit_pivot = habits_df.pivot_table(values='num_val', index='entry_date', columns='name', aggfunc='first')
-        pivot = pivot.join(habit_pivot, how='left')
+        habit_pivot = habits_df.pivot_table(values='num_val', index='period', columns='name', aggfunc='first')
+        pivot_current = pivot_current.join(habit_pivot, how='left')
 
-    corr_matrix = pivot.corr(min_periods=min_pts)
+    corr_matrix = pivot_current.corr(min_periods=min_pts)
     pairs_df = (
         corr_matrix
         .where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
@@ -246,7 +253,7 @@ def analytics():
     for _, row in pairs_df.iterrows():
         c1, c2, corr = row['metric1'], row['metric2'], row['corr']
         correlations.append((c1, c2, corr))
-        sub = pivot[[c1, c2]].dropna()
+        sub = pivot_current[[c1, c2]].dropna()
         if len(sub) >= 2:
             slope, _ = np.polyfit(sub[c1], sub[c2], 1)
             mean_x = sub[c1].mean()
@@ -259,14 +266,39 @@ def analytics():
                     f"{c2.lower()} may change from {mean_y:.0f} to {predicted:.0f}."
                 )
 
-    lines = [f"Accuracy: {accuracy}", f"Found {len(correlations)} significant correlations"]
+    # Lag correlations
+    pivot_prev = pivot_current.shift(1)
+    lag_df = pd.concat([
+        pivot_prev.add_suffix(' (prev)'),
+        pivot_current.add_suffix(' (curr)')
+    ], axis=1)
+    lag_corr = lag_df.corr(min_periods=min_pts)
+    prev_cols = [c for c in lag_corr.columns if c.endswith(' (prev)')]
+    curr_cols = [c for c in lag_corr.columns if c.endswith(' (curr)')]
+    lag_pairs_df = lag_corr.loc[prev_cols, curr_cols].stack().reset_index()
+    lag_pairs_df.columns = ['metric_prev', 'metric_curr', 'corr']
+    if not show_trivial:
+        mask = lag_pairs_df.apply(
+            lambda r: frozenset({r['metric_prev'][:-7], r['metric_curr'][:-7]}) in TRIVIAL_PAIRS,
+            axis=1,
+        )
+        lag_pairs_df = lag_pairs_df[~mask]
+    lag_pairs_df = lag_pairs_df[(lag_pairs_df['corr'].abs() >= thresh) & (lag_pairs_df['corr'].abs() < 0.99)]
+    lag_correlations = [(r['metric_prev'], r['metric_curr'], r['corr']) for _, r in lag_pairs_df.iterrows()]
+
+    lines = [f"Accuracy: {accuracy}", f"Period: {period}", f"Found {len(correlations)} significant correlations"]
     for c1, c2, corr in correlations:
         lines.append(f"{c1} vs {c2}: {corr:+.2f}")
 
+    lines.append("")
+    lines.append(f"Lag correlations ({period}): {len(lag_correlations)} pairs")
+    for c1, c2, corr in lag_correlations:
+        lines.append(f"{c1} -> {c2}: {corr:+.2f}")
+
     message = '\n'.join(lines)
     if request.args.get('json') == '1':
-        return jsonify({'correlations': correlations, 'summaries': summaries})
-    return render_template('analytics.html', message=message, summaries=summaries, accuracy=accuracy)
+        return jsonify({'correlations': correlations, 'lag_correlations': lag_correlations, 'summaries': summaries})
+    return render_template('analytics.html', message=message, summaries=summaries, accuracy=accuracy, period=period)
 
 @app.route('/')
 def index():
