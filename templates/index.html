@@ -1,11 +1,12 @@
 {% extends 'base.html' %}
 {% block content %}
 <h2 class="mb-3">Upload Apple Health XML</h2>
-<form action="/upload" method="post" enctype="multipart/form-data" class="mb-4 p-3 bg-white rounded shadow-sm">
+<form id="upload-form" action="/upload" method="post" enctype="multipart/form-data" class="mb-4 p-3 bg-white rounded shadow-sm">
   <div class="mb-3">
     <input type="file" name="file" class="form-control" required>
   </div>
   <button type="submit" class="btn btn-primary">Upload</button>
+  <div id="upload-status" class="mt-2 text-info" style="display:none">Загрузка...</div>
 </form>
 
 <h2 class="mb-3">Create Habit</h2>
@@ -61,5 +62,10 @@
   {% endfor %}
 </ul>
 {% endif %}
+<script>
+  document.getElementById('upload-form').addEventListener('submit', function () {
+    document.getElementById('upload-status').style.display = 'block';
+  });
+</script>
 {% endblock %}
 
